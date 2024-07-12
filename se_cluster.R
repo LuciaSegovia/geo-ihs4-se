@@ -179,59 +179,18 @@ Se_cluster  <- Se_cluster %>%
             Se_n = n()) 
 
 # Saving the predicted maize Se conc. per cluster
-write.csv(Se_cluster, here::here("data", "maize", 
-           "predSe_ihs4_cluster.csv"), row.names = FALSE)
-
-#length(unique(geo$case_id)) 12447
-length(unique(geodata_ea$case_id)) 
-
-# Checking the values per district
-
-predmaize_group %>% 
-  ggplot(aes(Se_mean, DISTRICT)) + geom_boxplot()
-
-## Saving the values per EA group 
-predmaize_group %>% 
-  write.csv(.,here::here("data", "inter-output",
-                                 "predSe-maize_ihs4-EA-group.csv"))
-
-# Calculating the FW & different fractions of maize products ----
-## NCT data (IHS5)
-nct <- read.csv(here::here("data", "fct_ihs5_v2.1.csv")) %>% 
-  # Selecting only variables of interest
-  select(1:8, SE)
-head(nct)
-
-# Genereting one table only for maize and products
-# Checking maize items
-nct %>% filter(grepl("maize", ihs5_fooditem, ignore.case = TRUE)) 
-
-maize <- nct %>% filter(grepl("maize", ihs5_fooditem, ignore.case = TRUE)) %>%  
-  filter(ihs5_foodid != 118) 
+# write.csv(Se_cluster, here::here("data", "maize", 
+  #         "predSe_ihs4_cluster.csv"), row.names = FALSE)
 
 
-# Need water concentration for conversion from DW to FW. 
-# From Malawi FCT (from the IH5 NCT)
 
-maize.df <- predmaize_group %>% # Water and unit conversion (mg 100g-1 FW)
-  mutate(
-    maize_101 = Se_mean*(100-maize$WATER[maize$ihs5_foodid == "101"])/1000, 
-    maize_102 = Se_mean*(100-maize$WATER[maize$ihs5_foodid == "102"])/1000, 
-    maize_103 = Se_mean*(100-maize$WATER[maize$ihs5_foodid == "103"])/1000, 
-    maize_104 = Se_mean*(100-maize$WATER[maize$ihs5_foodid == "104"])/1000, 
-    maize_105 = Se_mean*(100-maize$WATER[maize$ihs5_foodid == "105"])/1000, 
-    maize_820 = Se_mean*(100-maize$WATER[maize$ihs5_foodid == "820"])/1000) %>% 
-  select(-c(1:4))
-
-# Estimating Se apparent intake ----
-
-
-test <- st_rasterize(geopredmaize.df %>% dplyr::select( predSe,geometry))
-
-plot(test)
-
-# crop the raster
-test2 <- st_crop(test, ea_selected)
-
+# Testing converting the predicted maize point data into a 
+# raster 
+# test <- st_rasterize(geopredmaize.df %>% dplyr::select( predSe,geometry))
+# 
+# plot(test)
+# 
+# # crop the raster
+# test2 <- st_crop(test, ea_selected)
+# 
 plot(hfp_meso)
-
