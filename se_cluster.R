@@ -17,14 +17,12 @@ library(tmap) # Spatial data viz
 # Loading data
 
 ## Loading Malawi EA shapefile (generated in geo-spatial/00.cleaning-boundaries.R)
-ea <- st_read(here::here( "data", 
-            "boundaries", "mwi_admbnda_adm4_nso.shp")) %>% 
+ea <- st_read(here::here( "data", "boundaries", "mwi_admbnda_adm4_nso.shp")) %>% 
   mutate(ADM2_PCODE = gsub("MW", "",ADM2_PCODE ))
 
 # Predicted maize Se conc. (predicted in geo-spatial/01_maize-model.R)
-predmaize.df <- read.csv(here::here("data", "maize",
-                                    "2024-05-03Se_raw_OK_expmaize.csv")) %>% 
-  rename(predSe = "Zhat_exp")
+predmaize.df <- read.csv(here::here("data", "maize", "2024-05-03Se_raw_OK_expmaize.csv")) %>% 
+  dplyr::rename(predSe = "Zhat_exp")
 #names(predmaize.df)
 
 # Transforming predicted maize Se conc. into a spatial obj.
@@ -101,6 +99,9 @@ cluster.df <- geodata_ea %>%
   filter(dist_diff == "YES") %>% 
   select(1:4,6, 11, 17:19)  %>% distinct()
 
+sum(is.na(cluster.df$ea_id))
+sum(is.na(cluster.df$EACODE))
+
 # This bit was used to identify the HH above
 # geodata_ea %>% filter(!case_id %in% unique(cluster.df$case_id)) %>% 
 #   st_drop_geometry() %>% distinct(case_id)
@@ -117,9 +118,6 @@ cluster.df <- geodata_ea %>%
 ea_selected <- ea %>% 
   filter(EACODE %in% unique(cluster.df$EACODE)) 
 
-
-
-
 # Getting maize grain Se concentration -----
 # Next step is getting the predicted maize grain Se concentration for 
 # each group of EAs
@@ -128,8 +126,10 @@ ea_selected <- ea %>%
  geopred_ea <- sf::st_join(geopredmaize.df, ea_selected, join = st_intersects)
 
 
+#sum(is.na(geopred_ea$EACODE))
+# sum(is.na(geopred_ea$predSe))
 
-# sum(is.na(geopred_ea$EACODE))
+
 # Checking that all EA groups has predSe values
 geopred_ea %>% 
   st_drop_geometry() %>% filter(!is.na(EACODE)) %>% 
@@ -161,13 +161,24 @@ Se_cluster <- geopred_ea %>%
   right_join(., cluster.df %>% dplyr::select(EACODE, ea_id)) %>% 
   distinct() 
 
+sum(is.na(Se_cluster$predSe))
+
 # Calculating the maize grain Se conc per EA group
-predmaize_group <- geopred_ea %>% 
-  st_drop_geometry() %>% filter(!is.na(EACODE)) %>% 
-  # Removing the lakes
-  #filter(!grepl("lake", DISTRICT, ignore.case = TRUE))  %>%
-#  mutate_at("DIST_CODE", as.character) %>% 
-  right_join(., geodata_ea) %>%  filter(!is.na(predSe)) 
+predmaize_group <- Se_cluster %>% 
+ filter(!is.na(predSe)) 
+
+sum(is.na(predmaize_group$predSe))
+length(unique(predmaize_group$ea_id))
+
+missing <- setdiff(unique(geodata.df$ea_id), unique(predmaize_group$ea_id))
+
+# checking the missing ea_ids
+# They are all from Likoma. Hence, we are using the mean (see docu)
+#tm_shape(geodata.df) +
+#  tm_borders() +
+#  tm_shape(geodata.df %>% filter(ea_id %in% missing)) +
+#  tm_polygons(col = "ea_id") 
+
 
 Se_cluster  <- Se_cluster %>% 
   group_by(ea_id) %>% 
@@ -178,9 +189,20 @@ Se_cluster  <- Se_cluster %>%
             EA_n = length(unique(EACODE)), 
             Se_n = n()) 
 
+# Fixing missing values for Likoma using global mean 
+Se_cluster  <- Se_cluster %>% mutate(
+  comments = ifelse(is.na(Se_mean), "NA replaced to global mean", NA), 
+  Se_n = ifelse(is.na(Se_mean), length(predmaize.df$predSe), Se_n), 
+  Se_mean = ifelse(is.na(Se_mean), mean(predmaize.df$predSe), Se_mean), 
+  Se_sd = ifelse(is.na(Se_sd), sd(predmaize.df$predSe), Se_sd),
+  Se_median = ifelse(is.na(Se_median), median(predmaize.df$predSe), Se_median), 
+  Se_iqr = ifelse(is.na(Se_iqr), IQR(predmaize.df$predSe), Se_iqr))
+
+mean(predmaize.df$predSe)
+
 # Saving the predicted maize Se conc. per cluster
 # write.csv(Se_cluster, here::here("data", "maize", 
-  #         "predSe_ihs4_cluster.csv"), row.names = FALSE)
+  #         "predSe_ihs4_cluster_v1.0.0.csv"), row.names = FALSE)
 
 
 
@@ -193,4 +215,5 @@ Se_cluster  <- Se_cluster %>%
 # # crop the raster
 # test2 <- st_crop(test, ea_selected)
 # 
-plot(hfp_meso)
+
+
