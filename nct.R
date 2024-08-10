@@ -16,8 +16,8 @@ library(ggplot2) # Data viz
 # Loading food list
 food <- readRDS(here::here("data", "food-list_ihs4_v2.1.0.rds"))
 
-# maize Se cluster (mg kg-1 DM)
-cluster <- read.csv(here::here("data", "maize", "predSe_ihs4_cluster.csv"))
+# maize Se cluster (mg kg-1 DM) # generated in se_cluster.R
+cluster <- read.csv(here::here("data", "maize", "predSe_ihs4_cluster_v1.0.0.csv"))
 
 # Getting dictionary codes for mineral compo
 dict <- read.csv(here::here("data", "dict_fct_compilation_v.1.4.0.csv"))
@@ -108,15 +108,17 @@ Se_ratio <- ratio$ratio_refine[ratio$Element == "Se"]
 # Water and unit conversion (mg 100g-1 FW) & ratio conversion
 maize.df <- cluster %>% 
   mutate(
-    maize_101 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "101"])*100, 
-    maize_102 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "102"])*100*Se_ratio, 
-    maize_103 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "103"])*100*(1-Se_ratio), 
-    maize_104 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "104"])*100, 
-    maize_105 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "105"])*100, 
-    maize_820 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "820"])*100) %>% 
+    maize_101 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "101"]), 
+    maize_102 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "102"])*Se_ratio, 
+    maize_103 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "103"])*(1-Se_ratio), 
+    maize_104 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "104"]), 
+    maize_105 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "105"]), 
+    maize_820 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "820"])) %>% 
   select(-c(2:5))
 
 head(maize.df)
+
+sum(is.na(maize.df$maize_101))
 
 
 maize.df <- maize.df %>% pivot_longer(., 
@@ -126,6 +128,9 @@ maize.df <- maize.df %>% pivot_longer(.,
                                       values_to = "Se_mcg_100g") %>%
   arrange(food_code)
 
+## Saving ea maize Se nct ----
+
+saveRDS(maize.df, here::here("data", "inter-output", "ea-maize-se-nct.RDS"))
 
 
 
