@@ -2,7 +2,8 @@
 
 # Envir prep -----
 library(survey) # survey design
-
+library(sf) # spatial data manipulation
+library(tmap) # map viz
 
 # RESULTS -----
 
@@ -15,13 +16,14 @@ ihs4_design<-svydesign(id=~ea_id,
 
 svyhist(~apparent_kcal, ihs4_design)
 abline(v = svymean(~apparent_kcal, ihs4_design)[1], lwd = 3, lty = 2)
-abline(v = 2600, lwd = 3, lty = 2, col = "green")
-abline(v = 1900, lwd = 3, lty = 2, col = "red")
+abline(v = 2050, lwd = 3, lty = 2, col = "green")
+# abline(v = 1900, lwd = 3, lty = 2, col = "red")
 
-# AFE kcal (2,600)
+# AFE kcal (2,050)
 svymean(~apparent_se_ea, ihs4_design)
+svymean(~apparent_se, ihs4_design)
 svymean(~apparent_kcal, ihs4_design)
-svyby(~apparent_kcal, ~reside,  ihs4_design, svymean, vartype=c("se","ci"))
+svyby(~apparent_kcal, ~reside*region,  ihs4_design, svymean, vartype=c("se","ci"))
 
 
 ## Urban/rural ----
@@ -43,15 +45,55 @@ two <- svyby(~apparent_kcal, ~region,  ihs4_design, svymean, vartype=c("se","ci"
 names(two)[1] <- "variable"
 
 ## district ----
-three <- svyby(~apparent_kcal, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
-  left_join(., svyby(~apparent_se_ea, ~district,  ihs4_design, svymean,
-                     vartype=c("se","ci")), by = "district") %>% 
-  left_join(., svyby(~apparent_se, ~district,  ihs4_design, svymean, 
-                     vartype=c("se","ci")),by = "district" ) # %>% View()
+three <- svyby(~apparent_kcal, ~ADM2_EN,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
+  left_join(., svyby(~apparent_se_ea, ~ADM2_EN,  ihs4_design, svymean,
+                     vartype=c("se","ci")), by = "ADM2_EN") %>% 
+  left_join(., svyby(~apparent_se, ~ADM2_EN,  ihs4_design, svymean, 
+                     vartype=c("se","ci")),by = "ADM2_EN" ) # %>% View()
 
 names(three)[1] <- "variable"
 
-rbind(one, two, three)
+table <- rbind(one, two, three)
+
+write.csv(table , here::here("output", "apparent-intakes_v1.0.0.csv"), 
+          row.names = FALSE)
+
+
+## Fig. 1: difference intake ----
+
+three %>% 
+rowwise() %>% 
+  mutate(mymean = mean(c(apparent_se,apparent_se_ea) )) %>% 
+  arrange(mymean) %>% 
+  mutate(variable = factor(variable, variable)) %>% 
+  ggplot() +
+  geom_segment(aes(x=variable, xend=variable, 
+                   y=apparent_se, yend=apparent_se_ea), color="grey") +
+  geom_point(aes(x=variable, y=apparent_se), 
+             color=rgb(0.2,0.7,0.1,0.5), size=3) +
+  geom_point( aes(x=variable, y=apparent_se_ea), 
+              color=rgb(0.7,0.2,0.1,0.5), size=3) +
+  coord_flip()+
+  xlab("") +
+  ylab("apparent Se inatke (mcg/AFE/day)") +
+ # hrbrthemes::theme_ipsum() +
+  theme_bw() 
+  
+## Fig. 2: seasonal variation -----
+
+svyby(~apparent_se_ea, ~Date*reside,  ihs4_design, svymean) %>% 
+left_join(., svyby(~apparent_se, ~Date*reside,  ihs4_design, svymean), 
+          by = c("Date", "reside")) %>% 
+  ggplot() +
+  geom_line(aes( Date, apparent_se), colour = "grey") +
+  geom_line(aes( Date, apparent_se_ea), colour = "blue") +
+  geom_vline(xintercept = as.Date("2016-10-01"), colour = "red") +
+  geom_vline(xintercept = as.Date("2017-03-01"), colour = "red") +
+# Date > "2016-09-30" & Date < "2017-03-01"
+  
+  theme_minimal()+
+  facet_wrap(~reside, nrow =2)
+
 
 # Appartent Se inadeq. per district/region/reside
 svyby(~se.inad, ~reside,  ihs4_design, svyciprop) %>% 
@@ -61,6 +103,16 @@ svyby(~se.inad, ~reside,  ihs4_design, svyciprop) %>%
   arrange(desc(diff_inad)) %>% View()
 
 ## Maps of intake
+svyby(~apparent_kcal, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
+  left_join(., ea,  by = c("district"= "ADM2_PCODE")) %>% st_as_sf() %>% 
+  tm_shape() +
+  #  tm_polygons(
+  tm_fill( 
+    "apparent_kcal", 
+    style = "cont", # changed fixed to continous
+    #  breaks = c(6, 7, 9, 10, 12, 14), 
+    palette = "YlOrBr") +
+  tm_layout(legend.outside = TRUE, legend.text.size = 1)
 
 svyby(~apparent_se_ea, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
   left_join(., ea,  by = c("district"= "ADM2_PCODE")) %>% st_as_sf() %>% 
@@ -106,9 +158,14 @@ svyciprop(~se.inad,  ihs4_design)*100
 
 # Check only from Oct, 2015 - Feb, 2016. -----
 
+# Checking overall energy for lean season
+ihs4_summary %>% filter(Date > "2016-09-30" & Date < "2017-03-01") %>% 
+  ungroup() %>% 
+  group_by(reside) %>% 
+  summarise(across(starts_with("apparent_"), ~mean(.x, na.rm = TRUE)))
+
 class(ihs4$interviewDate)
 max(ihs4$interviewDate)
-
 
 
 #ihs4$Date <- as.Date(ihs4$interviewDate, '%Y-%m-%d')

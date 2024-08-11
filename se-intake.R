@@ -87,6 +87,7 @@ mean(ihs4_nct$Se_mcg_100g[grepl("maize", ihs4_nct$item, ignore.case = TRUE)])
 
 # Getting Se/AFE/day 45mcg/day (Allen et al, 2019) (UL 300mcg/day)
 names(ihs4_nct)
+
 ihs4_summary <- ihs4_nct %>% 
   group_by(HHID, ea_id, hh_wgt, reside, district, Date, region) %>% 
   summarise(
@@ -99,13 +100,14 @@ ihs4_summary <- ihs4_nct %>%
     se.ul = ifelse(apparent_se>300, 1, 0), # High 1/ adequate 0
     se.inad_ea = ifelse(apparent_se_ea<45, 1, 0), # Inadequate 1/ adequate 0
     se.ul_ea = ifelse(apparent_se_ea>300, 1, 0), # High 1/ adequate 0
-    enerc.low = ifelse(apparent_kcal<1900, "Low", "OK"))
+    enerc.low = ifelse(apparent_kcal<1900, "Low", "OK")) %>% 
+  filter(apparent_kcal>400 & apparent_kcal <8000)
 
 ihs4_summary$district <- as.character(ihs4_summary$district)
 
-ihs4_summary %>% 
-  left_join(., ea[, c("ADM2_PCODE", "ADM2_EN")], by = c("district" = "ADM2_PCODE")) %>% 
-  filter(ADM2_EN)
+ihs4_summary <- ihs4_summary %>% 
+  left_join(., ea[, c("ADM2_PCODE", "ADM2_EN")] %>% st_drop_geometry() %>% 
+              distinct(), by = c("district" = "ADM2_PCODE"))
 
 hist(ihs4_summary$apparent_se)
 mean(ihs4_summary$apparent_se)
