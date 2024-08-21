@@ -113,7 +113,8 @@ maize.df <- cluster %>%
     maize_103 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "103"])*(1-Se_ratio), 
     maize_104 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "104"]), 
     maize_105 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "105"]), 
-    maize_820 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "820"])) %>% 
+    maize_820 = Se_mean*(100-nct$WATER[nct$ihs5_foodid == "820"]) # Retention factor (Se, KE18 = 1)
+    ) %>% 
   select(-c(2:5))
 
 head(maize.df)

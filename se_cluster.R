@@ -191,7 +191,7 @@ Se_cluster  <- Se_cluster %>%
 
 # Fixing missing values for Likoma using global mean 
 Se_cluster  <- Se_cluster %>% mutate(
-  comments = ifelse(is.na(Se_mean), "NA replaced to global mean", NA), 
+  comments = ifelse(is.na(Se_mean), "NA replaced to global mean/median", NA), 
   Se_n = ifelse(is.na(Se_mean), length(predmaize.df$predSe), Se_n), 
   Se_mean = ifelse(is.na(Se_mean), mean(predmaize.df$predSe), Se_mean), 
   Se_sd = ifelse(is.na(Se_sd), sd(predmaize.df$predSe), Se_sd),

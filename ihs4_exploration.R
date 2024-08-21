@@ -25,6 +25,11 @@ ihs4 <- readRDS(here::here("data", "ihs4", "hh_mod_g_afe_clean.RDS")) %>%
   dplyr::filter(consYN == 1, !is.na(g_afe_replace)) 
 
 names(ihs4)
+length(unique(ihs4$HHID))
+length(unique(ihs4$case_id))
+
+ihs4 %>% count(item_code) %>% arrange(desc(n))
+
 
 ## AFE
 # <- read.csv(here::here("data", "ihs4", 
@@ -126,5 +131,11 @@ length(ihs4$item_code[grepl("outlier", ihs4$comments)])
 # Generating a date varible
 ihs4$Date <- as.Date(ihs4$interviewDate, '%Y-%m-%d')
 
+length(unique(ihs4$HHID))
+length(unique(ihs4$case_id))
+
+ihs4 %>% count(item_code) %>% arrange(desc(n))
+
+
 # Saving IHS4 after outliers being converted into Q75
-write.csv(ihs4, here::here("data", "inter-output", "hh_cons_AFE_q75_v.1.0.1.RDS"))
+saveRDS(ihs4, here::here("data", "inter-output", "hh_cons_AFE_q75_v.1.0.1.RDS"))
