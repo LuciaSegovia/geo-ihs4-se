@@ -1,93 +1,41 @@
+####################################################################
+#                                                                  #
+#          This script matches the NCT (nutrient info)             #         
+#             with the app. consumption IHS4                       #         
+#                                                                  # 
+#                                                                  #  
+####################################################################    
 
+# Loading the packages -----
+library(dplyr) # Data cleaning 
+library(ggplot2) # Data viz
+library(ggridges) # Data viz:ridges
+#library(sp) # Spatial data manipulation
+library(sf) # Spatial data manipulation
+#library(stars) # Spatial data manipulation
+#library(tmap) # Spatial data viz
 
-# Loading data
-library(survey) # survey design
-library(srvyr) # survey design
-library(dplyr)
-library(ggplot2)
-library(ggridges)
-library(sf) # spatial data manipulation
-library(tmap) # map viz
-
-# Loading the data
-## Loading Malawi EA shapefile (generated in geo-spatial/00.cleaning-boundaries.R)
-ea <- st_read(here::here( "data", "boundaries", "mwi_admbnda_adm4_nso.shp")) %>% 
-  mutate(ADM2_PCODE = gsub("MW", "",ADM2_PCODE ))
-
+# Loading the data -----
+# Consumption data (ihs4)
 # Loading cleaned and reviewed IHS4 (from ihs4_exploration.R)
-ihs4 <- readRDS(here::here("data", "inter-output", "hh_cons_AFE_q75_v.1.0.1.RDS")) %>% 
-  dplyr::rename(g_AFE = "g_afe_replace")
+ihs4 <- readRDS(here::here("data", "inter-output", 
+                           "hh_cons_AFE_q75_v.1.0.1.RDS")) %>% 
+  rename(g_AFE = "g_afe_replace")
 
-length(unique(ihs4$HHID))
-length(unique(ihs4$item_code))
+# NCT (ihs4) (from fct repo)
+nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.0.csv")) %>%
+  # Excluding 118 not present in ihs4
+  filter(code != "118")
 
-ihs4 %>% count(item_code) %>% arrange(desc(n))
-
-ihs4$g_AFE[ihs4$item_code == "835"]
-
-# Loading ea maize se nct (from nct.R)
+# Maize Se ----
+# From the nct.R
+# EA group (disaggregated)
 maize.df <- readRDS(here::here("data", "inter-output", "ea-maize-se-nct.RDS"))
+# National (single value)
+national_maize <- readRDS( here::here("data", "inter-output",
+                                      "national-maize-se-nct.RDS")) %>% 
+  rename(Se_mcg_100gN = "Se_mcg_100g")
 
-## NCT data (IHS5) (from fct repo)
-nct <-   read.csv(here::here("data", "fct_ihs5_v2.2.csv")) %>%   
-  # Selecting only variables of interest
-  select(1:5, WATER, ENERC1, SE, comment) %>% rename(
-    code = "ihs5_foodid", 
-    item = "ihs5_fooditem", 
-    source_fct = "ref_source", 
-    fdc_id = "ref_fctcode", 
- #   food_desc = "ref_fctitem", 
-    WATERg = "WATER", 
-    ENERCkcal = "ENERC1", 
-    SEmcg = "SE", 
-   comments = "comment"
-  ) %>% mutate(ID_3 = NA)
-
-head(nct)
-sum(duplicated(nct$code))
-
-# Partially reviewed NCT
-nct1 <- read.csv(here::here("data",  "inter-output",
-                            "ihs4-partial-nct_v1.0.0.csv")) 
-nct1$code <- as.character(nct1$code)
-
-names(nct1)
-sum(duplicated(nct1$code))
-
-nct1 <- nct1 %>% group_by(code, item) %>% 
-  summarise(across(is.numeric, mean),
-            source_fct = paste0(source_fct, collapse = "; "), 
-            fdc_id = paste0(fdc_id, collapse = "; "),
-            ID_3 = paste0(ID_3, collapse = "; ")) 
-
-# Function to fill the Energy missing values from the other NCT
-test_fn <- function(df, df2, tag = "ENERCkcal", code = "code", comments = "comments"){
-  
-  if(sum(names(df) == "comments")==0){
-    df$comments <- NA
-  }
-  
-  for(i in 1:nrow(df)){
-    
-if(is.na(df[i, c("ENERCkcal")])){
-  
-    test <-  df[i, c("code")][[1]]
-    print(test)
-    df[i, c("ENERCkcal")] <- df2$ENERCkcal[nct$code == test]
-    df[i, c("comments")] <- df2$fdc_id[nct$code == test]
-}
-  }
-  return(df)
-}
-
-nct1 <- test_fn(nct1, nct, "ENERCkcal", "code", "comments")
-
-nct <- nct %>% filter(!code %in% unique(nct1$code)) %>% 
-  bind_rows(., nct1) %>% 
-  # Only missing values for baby milk (not consumed by WRA & mucuna not reported in IHS4)
-  filter(!is.na(SEmcg)) 
-
-names(nct)
 
 # Merging the datasets -----
 
@@ -97,12 +45,18 @@ names(nct)
 ihs4$item_code <-  as.character(ihs4$item_code)
 
 ihs4$g_AFE[ihs4$item_code == "835"]
+names(ihs4)
 
 ihs4_nct <- ihs4 %>% select(case_id, HHID, ea_id, item, item_code, region, district, 
                 reside, hh_wgt, Date, factor, kg_d, g_AFE) %>% 
+  # Adding maize
+  left_join(., national_maize,
+            by = c("item_code" = "code" )) %>% 
+  # Adding EA group maize
                 left_join(., maize.df,
-                   by = c("item_code" = "food_code", "ea_id" )) # %>% 
+                   by = c("item_code" = "food_code", "ea_id" )) 
 #  filter(is.na(Se_mcg_100g)) %>% distinct(item_code) %>% arrange(desc(item_code))
+
 ihs4_nct$district <- as.character(ihs4_nct$district)
 
 ihs4_nct$g_AFE[ihs4_nct$item_code == "835"]
@@ -115,7 +69,9 @@ nct$code[nct$code == "414"]
 
 # Missing Se values for "other" and Infant formula 
 ihs4_nct %>% left_join(., nct %>% select(-item),  by = c("item_code" = "code")) %>% 
-  mutate(Se_mcg_100g = ifelse(is.na(Se_mcg_100g), SEmcg, Se_mcg_100g)) %>% 
+  mutate(
+    Se_mcg_100gN = ifelse(is.na(Se_mcg_100gN), SEmcg, Se_mcg_100gN),
+    Se_mcg_100g = ifelse(is.na(Se_mcg_100g), SEmcg, Se_mcg_100g)) %>% 
     filter(is.na(Se_mcg_100g)) %>% 
     count(item_code, item) %>% View()
 
@@ -124,14 +80,20 @@ ihs4_nct %>% left_join(., nct %>% select(-item),  by = c("item_code" = "code")) 
 #  ggplot(aes(g_AFE, as.character(item_code), colour = item)) +
 #  geom_boxplot()
   
-  
+# Completing the Se value for EA-group and National maize  
 ihs4_nct <- ihs4_nct %>% # Here we removed item bc it was excluding items
   left_join(., nct%>% select(-item),  by = c("item_code" = "code")) %>% 
-    mutate(Se_mcg_100g = ifelse(is.na(Se_mcg_100g), SEmcg, Se_mcg_100g)) %>% 
-    filter(!is.na(Se_mcg_100g)) %>% 
+    mutate(
+      Se_mcg_100gN = as.numeric(ifelse(is.na(Se_mcg_100gN), SEmcg, Se_mcg_100gN)),
+      Se_mcg_100g = ifelse(is.na(Se_mcg_100g), SEmcg, Se_mcg_100g)) %>% 
+    filter(!is.na(Se_mcg_100g))
+
+# Calculating the Se supply per food consumed in (mcg/AFE/day)
+ihs4_nct <- ihs4_nct %>% 
   mutate(
     Se_afe = SEmcg*g_AFE/100, 
     Se_afe_ea = Se_mcg_100g*g_AFE/100,
+    Se_afe_N = Se_mcg_100gN*g_AFE/100,
     kcal_afe = ENERCkcal*g_AFE/100)
 
 ihs4_nct$g_AFE[ihs4_nct$item_code == "835"]
@@ -167,12 +129,15 @@ ihs4_summary <- ihs4_nct %>%
   group_by(HHID, ea_id, hh_wgt, reside, district, Date, region) %>% 
   summarise(
     apparent_se = sum(Se_afe), 
+    apparent_se_N = sum(Se_afe_N), 
     apparent_se_ea = sum(Se_afe_ea), 
     apparent_kcal = sum(kcal_afe)) %>% 
   # Getting adequacy Se and Enerc flag
   mutate(  #TO-DO: Change it back to text!!! 
     se.inad = ifelse(apparent_se<45, 1, 0), # Inadequate 1/ adequate 0
     se.ul = ifelse(apparent_se>300, 1, 0), # High 1/ adequate 0
+    se.inad_N = ifelse(apparent_se_N<45, 1, 0), # Inadequate 1/ adequate 0
+    se.ul_N = ifelse(apparent_se_N>300, 1, 0), # High 1/ adequate 0
     se.inad_ea = ifelse(apparent_se_ea<45, 1, 0), # Inadequate 1/ adequate 0
     se.ul_ea = ifelse(apparent_se_ea>300, 1, 0), # High 1/ adequate 0
     enerc.low = ifelse(apparent_kcal<1900, "Low", "OK")) %>%
@@ -205,19 +170,25 @@ ihs4_nct %>% filter(HHID %in% check) %>% arrange(kcal_afe) %>% View()
 
 
 
+## Ridges graph ----
 
+ihs4_summary %>% select(HHID, ea_id, reside, region, apparent_se, apparent_se_ea, 
+                        apparent_se_N, hh_wgt) %>% 
+#  filter(apparent_se_ea<300) %>% 
+  pivot_longer(cols = starts_with("apparent_se"), 
+               names_to = "method",
+               values_to = "apparent_se"
+               ) %>% 
+  mutate(method = case_when(
+    method == "apparent_se" ~ "FCT",
+    method == "apparent_se_ea" ~ "EA Group",
+    method == "apparent_se_N" ~ "National")) %>% 
+  ggplot(aes(apparent_se, method, fill = stat(x)), wt = hh_wgt) +
+#  geom_density_ridges()
+ geom_density_ridges_gradient( ) +
+  scale_fill_viridis_c(option = "C")  +
+  facet_wrap(~region, scales = "free_x")
 
-#ihs4_summary %>% select(HHID, ea_id, reside, apparent_se, apparent_se_ea, hh_wgt) %>% 
-#  pivot_longer(cols = starts_with("apparent_se"), 
-#               names_to = "method",
-#               values_to = "apparent_se"
-#               ) %>% 
-#  mutate(method = ifelse(method == "apparent_se", "national", "cluster")) %>% 
-#  ggplot(aes(apparent_se, method, fill = stat(x)), wt = hh_wgt) +
-##  geom_density_ridges()
-# geom_density_ridges_gradient( ) +
-#  scale_fill_viridis_c(option = "C") 
-#
 
 ## Food results -----
 
