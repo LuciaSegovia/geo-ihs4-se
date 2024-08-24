@@ -8,6 +8,7 @@
 
 # Loading the packages -----
 library(dplyr) # Data cleaning 
+library(tidyr) # Data manipulation
 library(ggplot2) # Data viz
 library(ggridges) # Data viz:ridges
 #library(sp) # Spatial data manipulation
@@ -16,6 +17,11 @@ library(sf) # Spatial data manipulation
 #library(tmap) # Spatial data viz
 
 # Loading the data -----
+
+## Loading Malawi EA shapefile & district names (generated in geo-spatial/00.cleaning-boundaries.R)
+ea <- st_read(here::here( "data", "boundaries", "mwi_admbnda_adm4_nso.shp")) %>% 
+  mutate(ADM2_PCODE = gsub("MW", "",ADM2_PCODE ))
+
 # Consumption data (ihs4)
 # Loading cleaned and reviewed IHS4 (from ihs4_exploration.R)
 ihs4 <- readRDS(here::here("data", "inter-output", 
@@ -34,7 +40,7 @@ maize.df <- readRDS(here::here("data", "inter-output", "ea-maize-se-nct.RDS"))
 # National (single value)
 national_maize <- readRDS( here::here("data", "inter-output",
                                       "national-maize-se-nct.RDS")) %>% 
-  rename(Se_mcg_100gN = "Se_mcg_100g")
+  rename(Se_mcg_100gN = "Se_mcg_100g") %>% mutate(Se_mcg_100gN = as.numeric(Se_mcg_100gN))
 
 
 # Merging the datasets -----
@@ -168,6 +174,9 @@ ihs4_nct %>% filter(HHID %in% check) %>%
 
 ihs4_nct %>% filter(HHID %in% check) %>% arrange(kcal_afe) %>% View()
 
+## Saving IHS4 food consumption & intakes per HHs----
+
+saveRDS(ihs4_summary, here::here("data", "inter-output", "ihs4-hh-intakes.RDS"))
 
 
 ## Ridges graph ----
@@ -204,6 +213,7 @@ fg$code[!duplicated(fg$code)]
 foodgroups <- fg[which(!duplicated(fg$code)),]
 
 foodgroups$FoodName_1[grep("fish", foodgroups$FoodName_1)] <- "fish and products"
+foodgroups$FoodName_1[grep("sunflowerseed", foodgroups$FoodName_1)] <- "oils and products"
 
 
 # Checking dupli
@@ -233,6 +243,9 @@ ihs4_nct %>%
             sd_cons =sd(g_AFE, na.rm = TRUE),
             mean_ener = mean(kcal_afe, na.rm = TRUE), 
             sd_ener =sd(kcal_afe, na.rm = TRUE), 
+            Q25 =quantile(kcal_afe, c(0.25), na.rm = TRUE),
+            median = median(kcal_afe, na.rm = TRUE), 
+            Q75 =quantile(kcal_afe, c(0.75), na.rm = TRUE), 
             mean_se_ea = mean(Se_afe_ea, na.rm = TRUE), 
             sd_se_ea =sd(Se_afe_ea, na.rm = TRUE),
             mean_se = mean(Se_afe_ea, na.rm = TRUE), 
@@ -249,20 +262,28 @@ group_by(case_id, FoodName_1) %>%
   summarise(perc = n()/length(unique(ihs4$case_id))*100, 
             mean_cons = mean(total_cons, na.rm = TRUE), 
             sd_cons =sd(total_cons, na.rm = TRUE),
+            Q25_cons =quantile(total_cons, c(0.25), na.rm = TRUE),
+            median_cons = median(total_cons, na.rm = TRUE), 
+            Q75_cons =quantile(total_cons, c(0.75), na.rm = TRUE), 
+         #   iqr25_cons =median_cons-IQR(total_cons, na.rm = TRUE),
+        #    iqr75_cons =median_cons+IQR(total_cons, na.rm = TRUE),
             mean_ener = mean(ener, na.rm = TRUE), 
             sd_ener =sd(ener, na.rm = TRUE), 
             enerc_per = (mean_ener/2362.6*100),
+            Q25_ener =quantile(ener, c(0.25), na.rm = TRUE),
+            median_ener = median(ener, na.rm = TRUE), 
+            Q75_ener =quantile(ener, c(0.75), na.rm = TRUE), 
             mean_se_ea = mean(se_ea, na.rm = TRUE), 
             sd_se_ea =sd(se_ea, na.rm = TRUE),
             mean_se = mean(se, na.rm = TRUE), 
             sd_se =sd(se, na.rm = TRUE)) %>%
  # arrange(desc(mean_se_ea)) %>% View()
 # group_by(FoodName_1) %>% 
-  filter(perc >50) %>% 
+  filter(perc >50) %>% View()
   slice_max(order_by = mean_cons, n = 10) %>% ungroup() %>% 
   distinct(FoodName_1)
 
-# Consumption of key food groups by variable
+# Consumption of maize and products by variable -----
 food <- c("maize and products (including white maize)")
 vari <- c("ADM2_EN")
 
@@ -281,9 +302,9 @@ ihs4_nct %>% # Getting district names
   summarise( 
     mean_cons = mean(total_cons, na.rm = TRUE), 
     sd_cons =sd(total_cons, na.rm = TRUE),
+    Q25_cons =quantile(total_cons, c(0.25), na.rm = TRUE),
     median_cons = median(total_cons, na.rm = TRUE), 
-    iqr25_cons =median_cons-IQR(total_cons, na.rm = TRUE),
-    iqr75_cons =median_cons+IQR(total_cons, na.rm = TRUE),
+    Q75_cons =quantile(total_cons, c(0.75), na.rm = TRUE), 
     mean_ener = mean(ener, na.rm = TRUE), 
     sd_ener =sd(ener, na.rm = TRUE), 
     mean_se_ea = mean(se_ea, na.rm = TRUE), 

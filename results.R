@@ -7,9 +7,19 @@ library(sf) # spatial data manipulation
 library(tmap) # map viz
 library(dplyr) #data manipulation
 
+# Loading data -----
+# Loading IHS4 intkes
+ihs4_summary <-  readRDS(here::here("data", "inter-output", "ihs4-hh-intakes.RDS"))
+#sum(is.na(ihs4_summary$ea_id))
+
 # RESULTS -----
 
-## Maize compo
+# NCT ----
+nct %>% count(source_fct)
+(51+8+6+4)/150 #KE18
+(23+11+4+2+1+1)/150 #MW19
+
+## Table: Maize Se values ----
 
 names(maize.df)
 
@@ -17,16 +27,19 @@ maize.df %>% group_by(food_code) %>%
   dplyr::summarise(
     mean = mean(Se_mcg_100g), 
     sd =sd(Se_mcg_100g, na.rm = TRUE),
+    Q25 =quantile(Se_mcg_100g, c(0.25), na.rm = TRUE),
     median = median(Se_mcg_100g, na.rm = TRUE), 
-    iqr =IQR(Se_mcg_100g, na.rm = TRUE),
+    Q75 =quantile(Se_mcg_100g, c(0.75), na.rm = TRUE), 
+ #   iqr =IQR(Se_mcg_100g, na.rm = TRUE),
     min =min(Se_mcg_100g,  na.rm = TRUE),
     max =max(Se_mcg_100g,  na.rm = TRUE),
-    Q25 =quantile(Se_mcg_100g, c(0.25), na.rm = TRUE),
-    Q75 =quantile(Se_mcg_100g, c(0.75), na.rm = TRUE), 
-    Q95 =quantile(Se_mcg_100g, c(0.95), na.rm = TRUE), 
-    ) %>% 
-  left_join(., nct[, c("code", "item", "SEmcg")], 
-            by =c("food_code"= "code")) %>% View()
+#    Q95 =quantile(Se_mcg_100g, c(0.95), na.rm = TRUE), 
+    ) %>% left_join(., national_maize, by =c("food_code"= "code")) %>% 
+  left_join(., nct[, c("code", "item", "SEmcg", "source_fct")], 
+            by =c("food_code"= "code")) %>%
+  relocate( item, .after = "food_code") %>% 
+  dplyr::mutate(across(is.numeric, round,  3)) %>% 
+  View()
   
 ### Boxplots: Maize Se
 
@@ -75,6 +88,7 @@ ihs4_design<-svydesign(id=~ea_id,
                        weights=~hh_wgt, strata = ~district+reside,
                        data=ihs4_summary)
 
+# Apparent intakes -----
 svyhist(~apparent_kcal, ihs4_design)
 abline(v = svymean(~apparent_kcal, ihs4_design)[1], lwd = 3, lty = 2)
 abline(v = 2050, lwd = 3, lty = 2, col = "green") # Energy req for WRA
@@ -82,6 +96,7 @@ abline(v = 2050, lwd = 3, lty = 2, col = "green") # Energy req for WRA
 
 # AFE kcal (2,050)
 svymean(~apparent_se_ea, ihs4_design)
+svymean(~apparent_se_N, ihs4_design)
 svymean(~apparent_se, ihs4_design)
 svymean(~apparent_kcal, ihs4_design)
 svyby(~apparent_kcal, ~reside*region,  ihs4_design, svymean, vartype=c("se","ci"))
@@ -92,7 +107,9 @@ one <- svyby(~apparent_kcal, ~reside,  ihs4_design, svymean, vartype=c("se","ci"
 left_join(., svyby(~apparent_se_ea, ~reside,  ihs4_design, svymean, 
                    vartype=c("se","ci")), by = "reside") %>% 
   left_join(., svyby(~apparent_se, ~reside,  ihs4_design, svymean, 
-                     vartype=c("se","ci")),by = "reside" ) # %>% View()
+                     vartype=c("se","ci")),by = "reside" ) %>% 
+left_join(., svyby(~apparent_se_N, ~reside,  ihs4_design, svymean, 
+                   vartype=c("se","ci")),by = "reside" ) # %>% View()
 
 names(one)[1] <- "variable"
 
@@ -101,7 +118,9 @@ two <- svyby(~apparent_kcal, ~region,  ihs4_design, svymean, vartype=c("se","ci"
   left_join(., svyby(~apparent_se_ea, ~region,  ihs4_design, svymean,
                      vartype=c("se","ci")), by = "region") %>% 
   left_join(., svyby(~apparent_se, ~region,  ihs4_design, svymean, 
-                     vartype=c("se","ci")),by = "region" )# %>% View()
+                     vartype=c("se","ci")),by = "region" ) %>% 
+  left_join(., svyby(~apparent_se_N, ~region,  ihs4_design, svymean, 
+                     vartype=c("se","ci")),by = "region" ) #%>% View()
 
 names(two)[1] <- "variable"
 
@@ -110,24 +129,67 @@ three <- svyby(~apparent_kcal, ~ADM2_EN,  ihs4_design, svymean, vartype=c("se","
   left_join(., svyby(~apparent_se_ea, ~ADM2_EN,  ihs4_design, svymean,
                      vartype=c("se","ci")), by = "ADM2_EN") %>% 
   left_join(., svyby(~apparent_se, ~ADM2_EN,  ihs4_design, svymean, 
-                     vartype=c("se","ci")),by = "ADM2_EN" ) # %>% View()
-
+                     vartype=c("se","ci")),by = "ADM2_EN" )  %>%
+left_join(., svyby(~apparent_se_N, ~ADM2_EN,  ihs4_design, svymean, 
+                   vartype=c("se","ci")),by = "ADM2_EN" ) 
 names(three)[1] <- "variable"
 
 table <- rbind(one, two, three)
 
-write.csv(table , here::here("output", "apparent-intakes_v2.0.0.csv"), 
+# Saving Table 3 -----
+write.csv(table , here::here("output", "apparent-intakes_v3.0.0.csv"), 
           row.names = FALSE)
 
 
 ## Fig. 1: difference intake ----
+pal_base <- c("#ffa600","#003f5c", "#35D0BA" )
+n <- length(unique(three$variable)) - 1
+
+
+three %>% 
+  rowwise() %>% 
+  mutate(mymean = mean(c(apparent_se,apparent_se_ea, apparent_se_N) )) %>% 
+  arrange(mymean) %>% 
+  mutate(variable = factor(variable, variable)) %>% 
+  mutate(mymean = mean(c(apparent_se,apparent_se_ea, apparent_se_N) )) %>% 
+  arrange(mymean) %>% 
+  pivot_longer(cols = starts_with("apparent_se"),
+               names_to = "method", 
+               values_to = "app_Se") %>% 
+  ggplot(aes(x = app_Se, y = variable )) +
+  stat_summary(
+    geom = "linerange", fun.min = "min", fun.max = "max", 
+    linewidth = 0.8, color = c(rep("black", n-1), rep("grey", 2)))+
+  ## white point to overplot line endings
+  geom_point(
+    aes(x = app_Se), size = 5,  stroke = 1, color = "white", fill = "white"
+  ) +
+  geom_point(
+    aes(x = app_Se, colour = method), size = 5, alpha =.6 ,stroke = 1) +
+  ## app. estima labels
+ # geom_text(
+ #   aes(label = round(app_Se), 
+ #       x = app_Se, vjust = -1, color = method),
+ # #  fontface = c(rep("plain", n*2), rep("bold", 2)),
+ #   family = "sans", size = 4.2) +
+  scale_colour_manual(values = pal_base) +
+  xlab("Apparent Se intake (mcg/AFE/day)") +
+  ylab("") +
+  theme_bw()# +
+  #Legend
+  #  annotate(
+  #   geom = "text", y = n + 1.8, x = c(30, 65, 110) ,
+  #    label = c("conventional NCT", "national maize NCT","Cluster NCT"), family = "sans", 
+  #    fontface = "bold", color = pal_base, size = 5, hjust = .5) 
+
+
 #pal_base <- c("#EFAC00", "#28A87D")
-pal_base <- c("#003f5c","#ffa600" )
+pal_base <- c("#ffa600","#003f5c", "#35D0BA" )
 n <- length(unique(three$variable)) - 1
 
 three %>% 
 rowwise() %>% 
-  mutate(mymean = mean(c(apparent_se,apparent_se_ea) )) %>% 
+  mutate(mymean = mean(c(apparent_se,apparent_se_ea, apparent_se_N) )) %>% 
   arrange(mymean) %>% 
   mutate(variable = factor(variable, variable)) %>% 
   ggplot() +
@@ -183,7 +245,7 @@ svyby(~se.inad, ~reside,  ihs4_design, svyciprop) %>%
   relocate(c(se.inad_ea,diff_inad), .after = "se.inad") %>% 
   arrange(desc(diff_inad)) %>% View()
 
-## Maps of intake
+## Maps of intake -----
 svyby(~apparent_kcal, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
   left_join(., ea,  by = c("district"= "ADM2_PCODE")) %>% st_as_sf() %>% 
   tm_shape() +
@@ -197,20 +259,27 @@ svyby(~apparent_kcal, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>
   tm_layout(legend.outside = TRUE, legend.text.size = 1)
 
 # Do a divergent map using 45 cut-off
-svyby(~apparent_se_ea, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
+svyby(~apparent_se, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
   left_join(., ea,  by = c("district"= "ADM2_PCODE")) %>% st_as_sf() %>% 
   tm_shape() +
   #  tm_polygons(
   tm_fill( 
-    "apparent_se_ea", 
+    "apparent_se", 
     style = "cont", # changed fixed to continous
    #   breaks = c(20, 40, 60, 80, 100), 
-      breaks = c(20, 35, 50, 80, 100), 
+      breaks = c(20, 35, 45, 80, 100), 
  #  values.range =c(0.15,1),
-     palette = "YlOrBr")+
+     palette = paletteer::paletteer_c("ggthemes::Red-Green-White Diverging", 20))+
+     #palette = paletteer::paletteer_c("ggthemes::Red-Blue Diverging", 20))+
  # tm_scale_continuous(values.range = c(0.15, 1),
 #  palette = "YlOrBr") +
   tm_layout(legend.outside = TRUE, legend.text.size = 1)
+
+# App. inadequacy ----
+svymean(~se.inad, ihs4_design)
+svymean(~se.inad_N, ihs4_design)
+svymean(~se.inad_ea, ihs4_design)
+
 
 svyby(~se.inad, ~~district,  ihs4_design, svyciprop) %>% 
   left_join(., ea,  by = c("district"= "ADM2_PCODE")) %>% st_as_sf() %>% 
@@ -276,3 +345,37 @@ ihs4_design2 <- ihs4_summary %>%
   as_survey_design(strata = c(district, reside), weights = hh_wgt)
 
 # PSU = ea_id
+
+
+## Checking differences in the means ---------
+
+svyttest( apparent_se_ea ~ reside , ihs4_design )
+
+#https://stackoverflow.com/questions/70626996/r-how-to-conduct-two-sample-t-test-with-two-different-survey-designs
+#svyhist(~log(apparent_se_ea), ihs4_design)
+# App. intake
+m_ea <- svymean(~log(apparent_se_ea), ihs4_design)
+m_N <- svymean(~log(apparent_se_N), ihs4_design)
+m_Se <- svymean(~log(apparent_se), ihs4_design)
+
+# App. indeq.
+m_ea <- svymean(~se.inad, ihs4_design)
+m_N <- svymean(~se.inad_N, ihs4_design)
+m_Se <- svymean(~se.inad_ea, ihs4_design)
+
+coef_one <- coef( m_ea )
+coef_two <- coef( m_N )
+coef_three <- coef( m_Se )
+se_one <- SE( m_ea )
+se_two <- SE( m_N )
+se_three <- SE( m_Se )
+
+# Comparing Cluster-level w/ national-level
+t_statistic <- abs( coef_one - coef_two ) / sqrt ( se_one ^2 + se_two ^2 )
+p_value <- ( 1 - pnorm( abs( coef_one - coef_two ) / sqrt( se_one ^2 + se_two ^2 ) ) ) * 2
+sig_diff <- ifelse( 1 - pnorm( abs( coef_one - coef_two ) / sqrt( se_one ^2 + se_two ^2 ) ) < 0.025 , "*" , "" )
+
+# Comparing Cluster-level w/ FCT
+t_statistic <- abs( coef_one - coef_three ) / sqrt ( se_one ^2 + se_three ^2 )
+p_value <- ( 1 - pnorm( abs( coef_one - coef_three ) / sqrt( se_one ^2 + se_three ^2 ) ) ) * 2
+sig_diff <- ifelse( 1 - pnorm( abs( coef_one - coef_three ) / sqrt( se_one ^2 + se_three ^2 ) ) < 0.025 , "*" , "" )
