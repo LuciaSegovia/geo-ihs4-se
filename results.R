@@ -6,11 +6,17 @@ library(srvyr) # survey design
 library(sf) # spatial data manipulation
 library(tmap) # map viz
 library(dplyr) #data manipulation
+library(tidyr) #data transformation
+library(ggplot2) #data viz
 
 # Loading data -----
 # Loading IHS4 intkes
 ihs4_summary <-  readRDS(here::here("data", "inter-output", "ihs4-hh-intakes.RDS"))
 #sum(is.na(ihs4_summary$ea_id))
+
+## Loading Malawi EA shapefile & district names (generated in geo-spatial/00.cleaning-boundaries.R)
+ea <- st_read(here::here( "data", "boundaries", "mwi_admbnda_adm4_nso.shp")) %>% 
+  mutate(ADM2_PCODE = gsub("MW", "",ADM2_PCODE ))
 
 # RESULTS -----
 
@@ -246,6 +252,8 @@ svyby(~se.inad, ~reside,  ihs4_design, svyciprop) %>%
   arrange(desc(diff_inad)) %>% View()
 
 ## Maps of intake -----
+# Palettes from 
+#https://r-charts.com/color-palettes/#continuous
 svyby(~apparent_kcal, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
   left_join(., ea,  by = c("district"= "ADM2_PCODE")) %>% st_as_sf() %>% 
   tm_shape() +
@@ -276,21 +284,102 @@ svyby(~apparent_se, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>%
   tm_layout(legend.outside = TRUE, legend.text.size = 1)
 
 # App. inadequacy ----
+# Global mean
 svymean(~se.inad, ihs4_design)
 svymean(~se.inad_N, ihs4_design)
 svymean(~se.inad_ea, ihs4_design)
 
 
-svyby(~se.inad, ~~district,  ihs4_design, svyciprop) %>% 
+## Urban/rural ----
+one <- svyby(~se.inad, ~reside,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
+  left_join(., svyby(~se.inad_N, ~reside,  ihs4_design, svymean, 
+                     vartype=c("se","ci")), by = "reside") %>% 
+  left_join(., svyby(~se.inad_ea, ~reside,  ihs4_design, svymean, 
+                     vartype=c("se","ci")),by = "reside" ) # %>% View()
+
+names(one)[1] <- "variable"
+
+## region ----
+two <- svyby(~se.inad, ~region,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
+  left_join(., svyby(~se.inad_N, ~region,  ihs4_design, svymean,
+                     vartype=c("se","ci")), by = "region") %>% 
+  left_join(., svyby(~se.inad_ea, ~region,  ihs4_design, svymean, 
+                     vartype=c("se","ci")),by = "region" ) #%>% View()
+
+names(two)[1] <- "variable"
+
+## district ----
+three <- svyby(~se.inad, ~ADM2_EN,  ihs4_design, svymean, vartype=c("se","ci")) %>% 
+  left_join(., svyby(~se.inad_N, ~ADM2_EN,  ihs4_design, svymean,
+                     vartype=c("se","ci")), by = "ADM2_EN") %>% 
+  left_join(., svyby(~se.inad_ea, ~ADM2_EN,  ihs4_design, svymean, 
+                     vartype=c("se","ci")),by = "ADM2_EN" )  
+names(three)[1] <- "variable"
+
+# Binding them all into one table
+table <- rbind(one, two, three)
+
+# Rounding & changing into perc. (%)
+table[,c(2:13)] <- round(table[,c(2:13)], 4)*100
+
+# Saving Table 4 -----
+write.csv(table , here::here("output", "risk-app-Se-inadequacy_v3.0.0.csv"), 
+          row.names = FALSE)
+
+
+## Fig. 3: difference inadequacy ----
+pal_base <- c("#ffa600","#003f5c", "#35D0BA" )
+n <- length(unique(three$variable)) - 1
+
+title <- "Risk of apparent Se inadequacy (%)"
+
+three %>% 
+  rowwise() %>% 
+  mutate(mymean = mean(c(se.inad, se.inad_N, se.inad_ea))) %>% 
+  arrange(mymean) %>% 
+  mutate(variable = factor(variable, variable)) %>% 
+  pivot_longer(cols = starts_with("se.inad"),
+               names_to = "method", 
+               values_to = "app_Se") %>% 
+  left_join(., ea[, c("ADM2_EN", "ADM1_EN" )] %>% st_drop_geometry() %>% 
+              distinct(), by = c("variable" = "ADM2_EN")) %>% 
+  filter(!is.na(ADM1_EN)) %>% 
+  mutate(ADM1_EN = factor(ADM1_EN, 
+                          levels = c("Northern", "Central", "Southern"))) %>% 
+  ggplot(aes(x = app_Se, y = variable )) +
+  stat_summary(
+    geom = "linerange", fun.min = "min", fun.max = "max", 
+    linewidth = 0.8, color = c(rep("black", n-1), rep("grey", 2)))+
+  ## white point to overplot line endings
+  geom_point(
+    aes(x = app_Se), size = 5,  stroke = 1, color = "white", fill = "white"
+  ) +
+  geom_point(
+    aes(x = app_Se, colour = method), size = 5, alpha =.6 ,stroke = 1) +
+  ## app. estima labels
+  # geom_text(
+  #   aes(label = round(app_Se), 
+  #       x = app_Se, vjust = -1, color = method),
+  # #  fontface = c(rep("plain", n*2), rep("bold", 2)),
+  #   family = "sans", size = 4.2) +
+  scale_colour_manual(values = pal_base) +
+  xlab(title) +
+  ylab("") +
+  facet_wrap(~ ADM1_EN, scales = "free_y") +
+  theme_bw() 
+  
+## Maps of app. inadeq -----
+svyby(~se.inad_N, ~district,  ihs4_design, svyciprop) %>% 
   left_join(., ea,  by = c("district"= "ADM2_PCODE")) %>% st_as_sf() %>% 
-  mutate(se.inad = se.inad*100) %>% 
+  mutate(se.inad = se.inad_N*100) %>% 
   tm_shape() +
   # tm_polygons(
   tm_fill(
     "se.inad", 
     style = "cont", 
     breaks = c(0, 20, 50, 80, 100), 
-    palette = "OrRd") +
+   # palette = "OrRd"
+   palette = paletteer::paletteer_c("ggthemes::Red-Gold", 20)) +
   tm_layout(legend.outside = TRUE, legend.text.size = 1)
 
 round(svyby(~se.inad, ~district,  ihs4_design, svyciprop, vartype=c("se","ci"))[,2:5], 3)*100
@@ -336,15 +425,16 @@ ihs4 %>% filter(
   ggplot(aes( Date, mean_day, colour = item)) + geom_line() +
   theme_minimal()
 
-
-ihs4_design2 %>%
-  summarise(md = srvyr::survey_median(apparent_kcal, na.rm=TRUE), 
-            mean = survey_mean(apparent_kcal, na.rm=TRUE))
-
+## Median using srvyr package ----
+# PSU = ea_id
 ihs4_design2 <- ihs4_summary %>%
   as_survey_design(strata = c(district, reside), weights = hh_wgt)
 
-# PSU = ea_id
+ihs4_design2 %>%
+  summarise(md = srvyr::survey_median(apparent_se, na.rm=TRUE), 
+            mean = survey_mean(apparent_se, na.rm=TRUE))
+
+
 
 
 ## Checking differences in the means ---------
