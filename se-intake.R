@@ -285,7 +285,7 @@ group_by(case_id, FoodName_1) %>%
 
 # Consumption of maize and products by variable -----
 food <- c("maize and products (including white maize)")
-vari <- c("ADM2_EN")
+vari <- c("region")
 
 ihs4_nct %>% # Getting district names
   left_join(., ea[, c("ADM2_PCODE", "ADM2_EN")] %>% st_drop_geometry() %>% 
@@ -388,3 +388,53 @@ ihs4_nct %>% # Getting district names
   geom_density_ridges() +
  #geom_density_ridges_gradient( ) +
   scale_fill_viridis_c(option = "C") 
+
+
+# Checking overall foods for lean season ----
+
+## Checking representativeness of the months
+ihs4_nct %>%
+#  filter(Date > "2016-09-30" & Date < "2017-03-01") %>% 
+  group_by(reside) %>% 
+  distinct(case_id) %>% count(reside)/length(unique(ihs4$case_id))
+
+
+food <- c("maize and products (including white maize)")
+
+maize1 <- ihs4_nct %>%   #filter(Date > "2016-09-30" & Date < "2017-03-01") %>%
+  filter(FoodName_1 %in% food) %>% 
+  group_by(item_code, item, reside) %>%
+  summarise(
+            Q25_qty =quantile(g_AFE, c(0.25), na.rm = TRUE),
+            med_qty = median(g_AFE, na.rm = TRUE), 
+            Q75_qty =quantile(g_AFE, c(0.75), na.rm = TRUE), 
+            Q25_Se_ea =quantile(Se_afe_ea, c(0.25), na.rm = TRUE),
+            med_Se_ea = median(Se_afe_ea, na.rm = TRUE), 
+            Q75_Se_ea =quantile(Se_afe_ea, c(0.75), na.rm = TRUE)) %>%
+  arrange(desc(med_Se_ea)) #%>% View()
+
+maize <- left_join(maize1, maize2, by=c("item_code", "item", "reside")) %>% 
+  mutate(
+    diff_qty = med_qty.x - med_qty.y, 
+    diff_Se = med_Se_ea.x - med_Se_ea.y) %>% 
+  select(1:3, diff_qty, diff_Se) 
+
+
+# Checking overall foods for lean season ----
+months <- ihs4_nct %>%
+  filter(Date > "2016-09-30" & Date < "2017-03-01") %>%
+  group_by(item_code, item, region) %>%
+  summarise(
+    Q25_qty =quantile(g_AFE, c(0.25), na.rm = TRUE),
+    med_qty = median(g_AFE, na.rm = TRUE), 
+    Q75_qty =quantile(g_AFE, c(0.75), na.rm = TRUE), 
+    Q25_Se_ea =quantile(Se_afe_ea, c(0.25), na.rm = TRUE),
+    med_Se_ea = median(Se_afe_ea, na.rm = TRUE), 
+    Q75_Se_ea =quantile(Se_afe_ea, c(0.75), na.rm = TRUE)) %>%
+  arrange(desc(med_Se_ea)) #%>% View()
+
+difference <- left_join(year, months, by=c("item_code", "item", "region")) %>% 
+  mutate(
+    diff_qty = med_qty.x - med_qty.y, 
+    diff_Se = med_Se_ea.x - med_Se_ea.y) %>% 
+  select(1:3, diff_qty, diff_Se)  

@@ -87,12 +87,18 @@ maize.df %>%  left_join(., nct[, c("code", "item", "SEmcg")],
   theme_bw() #+
 #  theme(legend.position = "top") 
 
-  
+ihs4_summary$reside <- as.character(ihs4_summary$reside)
 # Applying Survey weights & strata -----
 # PSU = ea_id
 ihs4_design<-svydesign(id=~ea_id, 
                        weights=~hh_wgt, strata = ~district+reside,
                        data=ihs4_summary)
+
+summary(ihs4_design)
+
+svychisq(~reside, ihs4_design)
+
+svychisq(~reside, ihs4_design)
 
 # Apparent intakes -----
 svyhist(~apparent_kcal, ihs4_design)
@@ -101,9 +107,14 @@ abline(v = 2050, lwd = 3, lty = 2, col = "green") # Energy req for WRA
 # abline(v = 1900, lwd = 3, lty = 2, col = "red")
 
 # AFE kcal (2,050)
-svymean(~apparent_se_ea, ihs4_design)
-svymean(~apparent_se_N, ihs4_design)
-svymean(~apparent_se, ihs4_design)
+#svymean(~apparent_se_ea, ihs4_design)
+#confint(svymean(~apparent_se_ea, ihs4_design))
+svyciprop(~apparent_se_ea,ihs4_design,  method = "mean" , level = 0.95)
+#svymean(~apparent_se_N, ihs4_design)
+svyciprop(~apparent_se_N,ihs4_design,  method = "mean" , level = 0.95)
+#svymean(~apparent_se, ihs4_design)
+svyciprop(~apparent_se,ihs4_design,  method = "mean" , level = 0.95)
+
 svymean(~apparent_kcal, ihs4_design)
 svyby(~apparent_kcal, ~reside*region,  ihs4_design, svymean, vartype=c("se","ci"))
 
@@ -285,9 +296,14 @@ svyby(~apparent_se, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>%
 
 # App. inadequacy ----
 # Global mean
-svymean(~se.inad, ihs4_design)
-svymean(~se.inad_N, ihs4_design)
-svymean(~se.inad_ea, ihs4_design)
+svyciprop(~se.inad,ihs4_design,  method = "mean" , level = 0.95)
+#svymean(~se.inad, ihs4_design)
+svyciprop(~se.inad_N,ihs4_design,  method = "mean" , level = 0.95)
+#svymean(~se.inad_N, ihs4_design)
+svyciprop(~se.inad_ea,ihs4_design,  method = "mean" , level = 0.95)
+#svymean(~se.inad_ea, ihs4_design)
+
+
 
 
 ## Urban/rural ----
@@ -403,11 +419,22 @@ svyciprop(~se.inad,  ihs4_design)*100
 
 # Check only from Oct, 2015 - Feb, 2016. -----
 
-# Checking overall energy for lean season
+# AFE kcal (2,050)
+svymean(~apparent_se_ea, subset(ihs4_design, Date > "2016-09-30" & Date < "2017-03-01" ))
+svymean(~apparent_se_N, subset(ihs4_design, Date > "2016-09-30" & Date < "2017-03-01" ))
+svymean(~apparent_se, subset(ihs4_design, Date > "2016-09-30" & Date < "2017-03-01" ))
+svymean(~apparent_kcal, subset(ihs4_design, Date > "2016-09-30" & Date < "2017-03-01" ))
+svyby(~apparent_kcal, ~region,  ihs4_design, svymean, vartype=c("se","ci"))
+svyby(~apparent_se_ea, ~region,  subset(ihs4_design, Date > "2016-09-30" & Date < "2017-03-01" ), svymean, vartype=c("se","ci"))
+
+## No weight 
 ihs4_summary %>% filter(Date > "2016-09-30" & Date < "2017-03-01") %>% 
   ungroup() %>% 
-  group_by(reside) %>% 
-  summarise(across(starts_with("apparent_"), ~mean(.x, na.rm = TRUE)))
+  #  group_by(reside) %>% 
+  group_by(item_code, item) %>% 
+  summarise(across(starts_with("apparent_"), ~median(.x, na.rm = TRUE)))
+
+
 
 class(ihs4$interviewDate)
 max(ihs4$interviewDate)
@@ -447,6 +474,7 @@ svyttest( apparent_se_ea ~ reside , ihs4_design )
 m_ea <- svymean(~log(apparent_se_ea), ihs4_design)
 m_N <- svymean(~log(apparent_se_N), ihs4_design)
 m_Se <- svymean(~log(apparent_se), ihs4_design)
+svyciprop(m_ea)
 
 # App. indeq.
 m_ea <- svymean(~se.inad, ihs4_design)
