@@ -81,7 +81,7 @@ geodata_ea$DIST_CODE <- as.character(geodata_ea$DIST_CODE)
 # tm_shape(geodata_ea) +
 #   tm_borders( col = "blue")
 
-# Need to filter out the EAs from different District
+# Need to filter out the EAs from different district
 geodata_ea %>%
   mutate(dist_diff = ifelse(district == ADM2_PCODE, "YES", "NO")) %>% 
   filter(dist_diff == "YES") %>%

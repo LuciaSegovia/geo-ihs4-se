@@ -106,6 +106,9 @@ abline(v = svymean(~apparent_kcal, ihs4_design)[1], lwd = 3, lty = 2)
 abline(v = 2050, lwd = 3, lty = 2, col = "green") # Energy req for WRA
 # abline(v = 1900, lwd = 3, lty = 2, col = "red")
 
+#svyhist(~log(apparent_se), ihs4_design)
+
+
 # AFE kcal (2,050)
 #svymean(~apparent_se_ea, ihs4_design)
 #confint(svymean(~apparent_se_ea, ihs4_design))
@@ -332,6 +335,12 @@ three <- svyby(~se.inad, ~ADM2_EN,  ihs4_design, svymean, vartype=c("se","ci")) 
                      vartype=c("se","ci")),by = "ADM2_EN" )  
 names(three)[1] <- "variable"
 
+# Checking differences btween district for national data
+
+three %>% 
+  mutate(nat_diff = (se.inad_N-se.inad_ea)*100,
+         sing_diff = (se.inad-se.inad_ea)*100) %>% View()
+
 # Binding them all into one table
 table <- rbind(one, two, three)
 
@@ -454,15 +463,89 @@ ihs4 %>% filter(
 
 ## Median using srvyr package ----
 # PSU = ea_id
-ihs4_design2 <- ihs4_summary %>%
+
+ihs4_summary$region <- as.factor(ihs4_summary$region)
+ihs4_design2 <- ihs4_summary %>% ungroup() %>% 
   as_survey_design(strata = c(district, reside), weights = hh_wgt)
 
+
+var <- "ADM2_EN"
+
+ihs4_design2 %>% 
+  #group_by(region) %>% 
+  group_by(!!sym(var)) %>% 
+  summarise(across(starts_with("apparent_se"),
+                          ~srvyr::survey_quantile(.x, c(0.25, 0.5, 0.75)))) %>% 
+  select(-ends_with("se")) %>% 
+  pivot_longer(cols = starts_with("apparent_"), 
+               names_to = "method", 
+               values_to = "Quartile") %>% 
+  #pivot_wider(names_from = region, 
+  pivot_wider(names_from = !!sym(var), 
+              values_from = Quartile,
+              #names_prefix = "region")
+              names_prefix = var) 
+
+var <- "ADM2_EN"
+
+ihs4_design2 %>% 
+  #group_by(region) %>% 
+  group_by(!!sym(var)) %>% 
+  summarise(across(starts_with("apparent_se"),
+                   ~srvyr::survey_quantile(.x, c(0.25, 0.5, 0.75)))) %>% 
+  select(-ends_with("se")) %>% 
+  pivot_longer(cols = starts_with("apparent_"), 
+               names_to = "method", 
+               values_to = "Quartile") %>% 
+  pivot_wider(names_from = method, 
+              values_from = Quartile
+              ) %>% View()
+
+
+
 ihs4_design2 %>%
-  summarise(md = srvyr::survey_median(apparent_se, na.rm=TRUE), 
-            mean = survey_mean(apparent_se, na.rm=TRUE))
+  summarise(Median_kcal =srvyr::survey_median(as.numeric(apparent_kcal),
+                                              vartype = "ci",
+                                              na.rm=TRUE), 
+         Quartiles_kcal =srvyr::survey_quantile(as.numeric(apparent_kcal),
+                                                c(0.25, 0.5, 0.75)))
+ihs4_design2 %>% group_by(region) %>% 
+summarize(
+  SMN = srvyr::survey_median(apparent_se, na.rm = TRUE),
+  n = unweighted(n()),
+  n_na = unweighted(sum(is.na(apparent_se)))
+)
 
 
+## ANOVA -----
+m <- ihs4_design2 %>%
+  svyglm(
+    design = .,
+    formula = apparent_se_N ~ region, 
+    family = "Gamma"
+  )
 
+broom::tidy(m) %>% mutate(p.value = prettyunits::pretty_p_value(p.value)) %>%
+  gt::gt() 
+
+m1 <- ihs4_design2 %>%
+  svyglm(
+    design = .,
+    formula = log(apparent_se_N) ~ region
+  )
+
+broom::tidy(m1) %>% mutate(p.value = prettyunits::pretty_p_value(p.value)) %>%
+  gt::gt() 
+
+
+# Checking distribution shape's
+hist(rgamma(n=1000, shape=5, rate=3))
+ks.test(ihs4_summary[, "apparent_se_ea"], rgamma(n=1000, shape=5, rate=3))
+
+ks.test(log(ihs4_summary[, "apparent_se_ea"]), rnorm(1000, 0, 2))
+
+hist(log(rgamma(n=1000, shape=5, rate=3)))
+ks.test(log(ihs4_summary[, "apparent_se_ea"]), log(rgamma(n=1000, shape=5, rate=3)))
 
 ## Checking differences in the means ---------
 

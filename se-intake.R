@@ -104,6 +104,10 @@ ihs4_nct <- ihs4_nct %>%
 
 ihs4_nct$g_AFE[ihs4_nct$item_code == "835"]
 
+# Saving the food matches to consumption (raw)
+saveRDS(ihs4_nct, here::here("data", "inter-output", 
+                             "ihs4-intake-ncts.RDS"))
+
 #ihs4_nct %>% filter(is.na(SEmcg), !is.na(Se_mcg_100g))
 #
 #hist(ihs4_nct$Se_afe)
@@ -214,6 +218,8 @@ foodgroups <- fg[which(!duplicated(fg$code)),]
 
 foodgroups$FoodName_1[grep("fish", foodgroups$FoodName_1)] <- "fish and products"
 foodgroups$FoodName_1[grep("sunflowerseed", foodgroups$FoodName_1)] <- "oils and products"
+foodgroups$FoodName_1[foodgroups$code == "105"] <- "maize and products (including white maize)"
+foodgroups$FoodName_1[foodgroups$code == "820"] <- "maize and products (including white maize)"
 
 
 # Checking dupli
@@ -235,6 +241,8 @@ ihs4_nct <- ihs4_nct %>% left_join(., foodgroups,
 
 
 ihs4_nct$g_AFE[ihs4_nct$item_code == "835"]
+
+ihs4_nct$FoodName_1[ihs4_nct$item_code == "105"] 
 
 ihs4_nct %>%
   group_by(item_code, item) %>% 
