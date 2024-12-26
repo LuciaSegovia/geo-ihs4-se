@@ -28,8 +28,9 @@ ihs4 <- readRDS(here::here("data", "inter-output",
                            "hh_cons_AFE_q75_v.1.0.1.RDS")) %>% 
   rename(g_AFE = "g_afe_replace")
 
-# NCT (ihs4) (from fct repo)
-nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.0.csv")) %>%
+## NCT data (IHS4) from fct repo (NCTs/ihs4_nct.R) 
+# https://github.com/LuciaSegovia/fct/blob/main/NCTs/ihs4_nct.R
+nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.1.csv")) %>%
   # Excluding 118 not present in ihs4
   filter(code != "118")
 
@@ -74,7 +75,8 @@ nct$SEmcg[nct$code == "835"]
 nct$code[nct$code == "414"]
 
 # Missing Se values for "other" and Infant formula 
-ihs4_nct %>% left_join(., nct %>% select(-item),  by = c("item_code" = "code")) %>% 
+ihs4_nct %>% left_join(., nct %>% select(-item), 
+                      by = c("item_code" = "code")) %>% 
   mutate(
     Se_mcg_100gN = ifelse(is.na(Se_mcg_100gN), SEmcg, Se_mcg_100gN),
     Se_mcg_100g = ifelse(is.na(Se_mcg_100g), SEmcg, Se_mcg_100g)) %>% 
@@ -169,6 +171,7 @@ mean(ihs4_summary$apparent_se)
 hist(ihs4_summary$apparent_se_ea)
 mean(ihs4_summary$apparent_se_ea)
 
+# Checking HH with very high Se app. intake
 ihs4_summary %>% filter(apparent_se>300) %>%  View()
 
 check <- ihs4_summary %>% filter(apparent_se>300) %>%  pull(HHID)
@@ -193,9 +196,9 @@ ihs4_summary %>% select(HHID, ea_id, reside, region, apparent_se, apparent_se_ea
                values_to = "apparent_se"
                ) %>% 
   mutate(method = case_when(
-    method == "apparent_se" ~ "FCT",
-    method == "apparent_se_ea" ~ "EA Group",
-    method == "apparent_se_N" ~ "National")) %>% 
+    method == "apparent_se" ~ "Baseline NCT",
+    method == "apparent_se_ea" ~ "Spatially-resolved",
+    method == "apparent_se_N" ~ "National average")) %>% 
   ggplot(aes(apparent_se, method, fill = stat(x)), wt = hh_wgt) +
 #  geom_density_ridges()
  geom_density_ridges_gradient( ) +
@@ -227,7 +230,8 @@ foodgroups$FoodName_1[foodgroups$code == "820"] <- "maize and products (includin
  value <- fg %>% count(code) %>% arrange(desc(n)) %>% filter(n>1) %>% pull(code)
 
 fg %>% filter(code %in% value)
-ihs4_nct %>% filter(item_code %in% value) %>% select(item_code, item) %>% distinct()
+ihs4_nct %>% filter(item_code %in% value) %>% 
+  select(item_code, item) %>% distinct()
 
 names(fg)
 

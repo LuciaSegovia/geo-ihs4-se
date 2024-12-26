@@ -10,18 +10,31 @@ library(ggplot2) #data viz
 # Loading data -----
 
 # NCT data w/ he food matches to consumption (raw)
-nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.0.csv")) %>%
+nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.1.csv")) %>%
   # Excluding 118 not present in ihs4
-  filter(code != "118")
+  filter(!code %in% c("118", "831b", "832b", "204b"))
 
 # From the nct.R
 # EA group (disaggregated)
 maize.df <- readRDS(here::here("data", "inter-output", "ea-maize-se-nct.RDS"))
 
-## Fig. 1 ---------------------
-
 # Filtering only maize values:
 maize_codes <- c(101, 102, 103, 104, 105, 820)
+
+## Table 1 ---------------------
+
+nct %>% filter(code %in% maize_codes)
+
+nct %>% count(source_fct)
+sum((58+3+2+1+2+2+1)/nrow(nct), #KE18
+(2+6+2+1+1+23+3)/nrow(nct), #MW19
+(1)/nrow(nct), #LS06
+(16+1+1)/nrow(nct), #UK21
+(3)/nrow(nct)) #US19
+
+## Fig. 1 ---------------------
+
+
 
 test <- nct %>% filter(code %in% maize_codes) %>% 
   select(code,item, SEmcg) %>% 
