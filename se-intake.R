@@ -240,6 +240,10 @@ ihs4_nct <- ihs4_nct %>% left_join(., foodgroups,
   filter(!is.na(FoodName_1) & g_AFE >0)
 
 
+# Saving the food matches to consumption (raw) & food groups-----
+saveRDS(ihs4_nct, here::here("data", "inter-output", 
+                             "ihs4-intake-ncts-fg.RDS"))
+
 ihs4_nct$g_AFE[ihs4_nct$item_code == "835"]
 
 ihs4_nct$FoodName_1[ihs4_nct$item_code == "105"] 

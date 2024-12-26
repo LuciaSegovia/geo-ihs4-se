@@ -37,8 +37,9 @@ predmaize.df <- read.csv(here::here("data", "maize", "2024-05-03Se_raw_OK_expmai
 
 #dict_nct %>% filter(is.na(ID_3)) %>% arrange(ref_source) %>% View()
 
-## NCT data (IHS4)
-nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.0.csv")) %>%
+## NCT data (IHS4) from fct repo (NCTs/ihs4_nct.R) 
+ # https://github.com/LuciaSegovia/fct/blob/main/NCTs/ihs4_nct.R
+nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.1.csv")) %>%
   # Excluding 118 not present in ihs4
   filter(code != "118")
     # Selecting only variables of interest

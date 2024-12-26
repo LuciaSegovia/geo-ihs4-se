@@ -20,6 +20,44 @@ ea <- st_read(here::here( "data", "boundaries", "mwi_admbnda_adm4_nso.shp")) %>%
 
 # RESULTS -----
 
+# Filtering only maize values:
+maize_codes <- c(101, 102, 103, 104, 105, 820)
+
+# Table 2 -----
+
+# Consumption data (ihs4)
+# Loading cleaned and reviewed IHS4 (from ihs4_exploration.R)
+ihs4 <- readRDS(here::here("data", "inter-output", 
+                           "hh_cons_AFE_q75_v.1.0.1.RDS")) %>% 
+  rename(g_AFE = "g_afe_replace") %>% select(case_id, HHID, ea_id, item, item_code, region, district, 
+                                                  reside, hh_wgt, Date, factor, kg_d, g_AFE)
+names(ihs4)
+
+# Identifying HHs reporting maize and maize flours
+ihs4 <- ihs4 %>% 
+  mutate(maize_yes = ifelse(item_code %in% maize_codes & !is.na(item_code),
+                            "YES", "NO")) %>% 
+  group_by(HHID, ea_id, region, district, 
+         reside, hh_wgt) %>% 
+  summarise(maize_yes = sum(maize_yes== "YES")) %>% 
+  mutate(maize = ifelse(maize_yes>0, "YES", "NO"))
+
+ihs4_design3 <- ihs4 %>% filter(HHID %in% unique(ihs4_summary$HHID)) %>% 
+  mutate(region = factor(region, levels = c(1, 2, 3), 
+                         labels = c("Northern", "Central", "Southern")),
+         reside = factor(reside, levels = c(1, 2), 
+                         labels = c("Urban", "Rural"))) %>% 
+  as_survey_design(strata = c(district, reside), weights = hh_wgt)
+
+
+ihs4_design3 %>% 
+  group_by(reside, maize) %>% 
+  summarize(N = n(),
+            p = survey_prop(vartype =c("ci")) * 100)
+
+
+# Supl. Table 1 -----
+
 # NCT ----
 nct %>% count(source_fct)
 (51+8+6+4)/150 #KE18
@@ -466,8 +504,14 @@ ihs4 %>% filter(
 
 ihs4_summary$region <- as.factor(ihs4_summary$region)
 ihs4_design2 <- ihs4_summary %>% ungroup() %>% 
+     mutate(region = factor(region, levels = c(1, 2, 3), 
+                            labels = c("Northern", "Central", "Southern")),
+            reside = factor(reside, levels = c(1, 2), 
+                  labels = c("Urban", "Rural"))) %>% 
   as_survey_design(strata = c(district, reside), weights = hh_wgt)
 
+## Table 2 ------
+# Summary hh survey
 
 var <- "ADM2_EN"
 
@@ -486,12 +530,14 @@ ihs4_design2 %>%
               #names_prefix = "region")
               names_prefix = var) 
 
-var <- "ADM2_EN"
 
-ihs4_design2 %>% 
+var <- c("reside","region",  "ADM2_EN")
+table3 <- list()
+i =3
+three <- ihs4_design2 %>% 
   #group_by(region) %>% 
-  group_by(!!sym(var)) %>% 
-  summarise(across(starts_with("apparent_se"),
+  group_by(!!sym(var[i])) %>% 
+  summarise(across(starts_with("apparent_"),
                    ~srvyr::survey_quantile(.x, c(0.25, 0.5, 0.75)))) %>% 
   select(-ends_with("se")) %>% 
   pivot_longer(cols = starts_with("apparent_"), 
@@ -499,7 +545,34 @@ ihs4_design2 %>%
                values_to = "Quartile") %>% 
   pivot_wider(names_from = method, 
               values_from = Quartile
-              ) %>% View()
+              ) %>% 
+  rename(variable = var[i]) 
+
+names(one)
+
+table3 <- rbind(one, two, three) %>% 
+  dplyr::select("variable", "apparent_kcal_q50", "apparent_kcal_q25",  "apparent_kcal_q75", 
+                "apparent_se_q50","apparent_se_q25", "apparent_se_q75" ,  
+ "apparent_se_N_q50" , "apparent_se_N_q25" , "apparent_se_N_q75", 
+ "apparent_se_ea_q50",   "apparent_se_ea_q25",  "apparent_se_ea_q75")
+
+table3 <- table3 %>% 
+  mutate(across(starts_with("apparent_kcal"), ~round(.))) %>% 
+mutate(apparent_kcal_iqr = paste0("(", apparent_kcal_q25, "-", apparent_kcal_q75, ")")) %>% 
+mutate(across(starts_with("apparent_se"), ~round(., 2))) %>% 
+mutate(apparent_se_iqr = paste0("(", apparent_se_q25, "-", apparent_se_q75, ")")) %>% 
+mutate(apparent_se_N_iqr = paste0("(", apparent_se_N_q25, "-", apparent_se_N_q75, ")")) %>% 
+mutate(apparent_se_ea_iqr = paste0("(", apparent_se_ea_q25, "-", apparent_se_ea_q75, ")")) %>% 
+  dplyr::select("variable", "apparent_kcal_q50", "apparent_kcal_iqr",
+                "apparent_se_q50","apparent_se_iqr",   
+                "apparent_se_N_q50" , "apparent_se_N_iqr" , 
+                "apparent_se_ea_q50",   "apparent_se_ea_iqr") #%>% 
+#  View()
+  
+
+# Saving Table 3 -----
+write.csv(table3 , here::here("output", "median-apparent-intakes_v3.0.1.csv"), 
+          row.names = FALSE)
 
 
 
@@ -508,7 +581,7 @@ ihs4_design2 %>%
                                               vartype = "ci",
                                               na.rm=TRUE), 
          Quartiles_kcal =srvyr::survey_quantile(as.numeric(apparent_kcal),
-                                                c(0.25, 0.5, 0.75)))
+                                                c(0.25, 0.5, 0.75))) %>% View()
 ihs4_design2 %>% group_by(region) %>% 
 summarize(
   SMN = srvyr::survey_median(apparent_se, na.rm = TRUE),
