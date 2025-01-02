@@ -20,13 +20,13 @@ library(sf) # Spatial data manipulation
 
 ## NCT data (IHS4) from fct repo (NCTs/ihs4_nct.R) 
 # https://github.com/LuciaSegovia/fct/blob/main/NCTs/ihs4_nct.R
-nct1 <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.1.csv")) %>%
+nct1 <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.0.csv")) %>%
   # Excluding 118 not present in ihs4
   filter(!code %in% c("118", "204b", "831b", "832b"))
 
 ## NCT data (IHS4) from fct repo (NCTs/ihs4_nct.R) 
 # https://github.com/LuciaSegovia/fct/blob/main/NCTs/ihs4_nct.R
-nct2 <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.0.csv")) %>%
+nct2 <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v2.0.0.csv")) %>%
   # Excluding 118 not present in ihs4
   filter(!code %in% c("118", "204b", "831b", "832b"))
 
@@ -40,4 +40,4 @@ check <- check %>% mutate(
   Enerc_check = ifelse(ENERCkcal.x==ENERCkcal.y, "OK", ENERCkcal.x-ENERCkcal.y))
 
 check <- food_list %>% left_join(., check) %>% 
-  filter(SE_check != "OK" | Enerc_check != "OK")
+  filter(SE_check >0)

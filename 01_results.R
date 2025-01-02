@@ -26,11 +26,11 @@ maize_codes <- c(101, 102, 103, 104, 105, 820)
 nct %>% filter(code %in% maize_codes)
 
 nct %>% count(source_fct)
-sum((58+3+2+1+2+2+1)/nrow(nct), #KE18
-(2+6+2+1+1+23+3)/nrow(nct), #MW19
+sum((53+4+2+1+2+4+1+1)/nrow(nct), #KE18(
+(8+1+1+27+1+4)/nrow(nct), #MW19
 (1)/nrow(nct), #LS06
-(16+1+1)/nrow(nct), #UK21
-(3)/nrow(nct)) #US19
+(6)/nrow(nct), #UK21
+(11+1)/nrow(nct)) #US19
 
 ## Table 2 --------------------
 
@@ -116,10 +116,10 @@ ihs4_design2 %>%
 var <- c("reside","region",  "ADM2_EN")
 #table3 <- list()
 # Manually changing 1:3
-i =3
+i =2
 # Manually saving 
 # one, two, three
-three <- ihs4_design2 %>% 
+two <- ihs4_design2 %>% 
   #group_by(region) %>% 
   group_by(!!sym(var[i])) %>% 
   summarise(across(starts_with("apparent_"),
@@ -154,7 +154,7 @@ table3 <- table3 %>%
                 "apparent_se_ea_q50",   "apparent_se_ea_iqr") 
 
 # Saving Table 3 -----
-write.csv(table3 , here::here("output", "median-apparent-intakes_v4.0.0.csv"), 
+write.csv(table3 , here::here("output", "median-apparent-intakes_v4.0.1.csv"), 
           row.names = FALSE)
 
 
@@ -169,9 +169,9 @@ ea <- st_read(here::here( "data", "boundaries", "mwi_admbnda_adm4_nso.shp")) %>%
 ## Median using srvyr package ----
 # PSU = ea_id
 
-ihs4_summary$region <- as.factor(ihs4_summary$region)
-ihs4_design2 <- ihs4_summary %>% ungroup() %>% 
-  as_survey_design(strata = c(district, reside), weights = hh_wgt)
+#ihs4_summary$region <- as.factor(ihs4_summary$region)
+#ihs4_design2 <- ihs4_summary %>% ungroup() %>% 
+#  as_survey_design(strata = c(district, reside), weights = hh_wgt)
 
 ## Fig. 2: difference intakes by region & residency ----
 # Loading the data
@@ -276,7 +276,7 @@ legend.map2 <- ihs4_design2 %>%
     # style = "cont", # changed fixed to continous
     #    breaks = c(20, 35, 45, 80, 100), 
     fill.scale = tm_scale_continuous(ticks = c(20, 35, 45, 80, 100)),
-    fill.legend = tm_legend(title = title_legend1, orientation = "landscape")) +
+    fill.legend = tm_legend(title = title_legend, orientation = "landscape")) +
   tm_layout(legend.only = TRUE)
 
 tmap_arrange(map1, map2, map3, legend.map2, ncol =3, nrow = 2)
@@ -330,7 +330,34 @@ ihs4_design2 %>%
 
 ## Suppl. Table. 2: inadequacy risk by residency region & district ----
 
+
+ihs4_summary  <- ihs4_summary %>% 
+  mutate(region = factor(region, levels = c(1, 2, 3), 
+                         labels = c("Northern", "Central", "Southern")),
+         reside = factor(reside, levels = c(1, 2), 
+                         labels = c("Urban", "Rural"))) 
+
+# Applying Survey weights & strata -----
+# PSU = ea_id
+ihs4_design<-svydesign(id=~ea_id, 
+                       weights=~hh_wgt, strata = ~district+reside,
+                       data=ihs4_summary)
+
+# App. inadequacy ----
+# Global mean
+svyciprop(~se.inad,ihs4_design,  method = "mean" , level = 0.95)*100
+#svymean(~se.inad, ihs4_design)
+svyciprop(~se.inad_N,ihs4_design,  method = "mean" , level = 0.95)*100
+#svymean(~se.inad_N, ihs4_design)
+svyciprop(~se.inad_ea,ihs4_design,  method = "mean" , level = 0.95)*100
+#svymean(~se.inad_ea, ihs4_design)
+
+
+
 table <- read.csv(here::here("output", "risk-app-Se-inadequacy_v4.0.0.csv")) %>%
+  dplyr::select(-c(se, se.x, se.y))
+
+table <- table %>%
   dplyr::select(-c(se, se.x, se.y))
 
 names(table) 
@@ -339,11 +366,26 @@ names(table) <- c("variable", "inadeq_se","inadeq_se_ci_l", "inadeq_se_ci_u" ,
                 "inadeq_se_N" , "inadeq_se_N_ci_l" , "inadeq_se_N_ci_u", 
                 "inadeq_se_ea",   "inadeq_se_ea_ci_l",  "inadeq_se_ea_ci_u")
 
+table <- table %>% 
+  mutate(across(starts_with("inadeq_se"), ~round(., ))) %>% 
+  mutate(inadeq_se_ci = paste0("(", inadeq_se_ci_l, "-", inadeq_se_ci_u, ")")) %>% 
+  mutate(inadeq_se_N_ci = paste0("(", inadeq_se_N_ci_l, "-", inadeq_se_N_ci_u, ")")) %>% 
+  mutate(inadeq_se_ea_ci = paste0("(", inadeq_se_ea_ci_l, "-", inadeq_se_ea_ci_u, ")")) %>% 
+  dplyr::select("variable", 
+                "inadeq_se","inadeq_se_ci",   
+                "inadeq_se_N" , "inadeq_se_N_ci" , 
+                "inadeq_se_ea",   "inadeq_se_ea_ci") 
+
+
+# Saving Sp. Table 4 -----
+write.csv(table , here::here("output", "SM", "Suppl.Table4_risk-app-Se-inadequacy_v4.0.1.csv"), 
+          row.names = FALSE)
+
 
 ## Fig. 4: difference inadequacy ----
 # Loading the data
 
-three <- read.csv(here::here("output", "risk-app-Se-inadequacy_v4.0.0.csv")) %>% 
+three <- read.csv(here::here("output", "risk-app-Se-inadequacy_v4.0.1.csv")) %>% 
   slice(6:37)
 
 pal_base <- c("#ffa600","#003f5c", "#35D0BA" )

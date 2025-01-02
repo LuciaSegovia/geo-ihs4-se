@@ -30,9 +30,9 @@ ihs4 <- readRDS(here::here("data", "inter-output",
 
 ## NCT data (IHS4) from fct repo (NCTs/ihs4_nct.R) 
 # https://github.com/LuciaSegovia/fct/blob/main/NCTs/ihs4_nct.R
-nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.1.csv")) %>%
+nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v2.0.0.csv")) %>%
   # Excluding 118 not present in ihs4
-  filter(!code %in% c("118", "204b", "831b", "832b"))
+  filter(!code %in% c("118", "204b", "831b", "832b")) %>% distinct()
 
 # Food list from IHS4
 food_list <- ihs4 %>% select(item_code, item) %>% distinct()
@@ -169,12 +169,16 @@ ihs4_summary <- ihs4_nct %>%
 sum(ihs4_summary$apparent_kcal<400)
 sum(ihs4_summary$apparent_kcal>9000)
 
+#
+length(ihs4_summary$apparent_se[ihs4_summary$enerc.low == "Low"])/nrow(ihs4_summary)*100
+
 ihs4_summary$district <- as.character(ihs4_summary$district)
 
 ihs4_summary <- ihs4_summary %>% 
   left_join(., ea[, c("ADM2_PCODE", "ADM2_EN")] %>% st_drop_geometry() %>% 
               distinct(), by = c("district" = "ADM2_PCODE"))
 
+hist(ihs4_summary$apparent_kcal)
 hist(ihs4_summary$apparent_se)
 mean(ihs4_summary$apparent_se)
 hist(ihs4_summary$apparent_se_ea)

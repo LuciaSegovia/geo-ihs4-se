@@ -436,8 +436,9 @@ names(three)[1] <- "variable"
 # Checking differences btween district for national data
 
 three %>% 
-  mutate(nat_diff = (se.inad_N-se.inad_ea)*100,
-         sing_diff = (se.inad-se.inad_ea)*100) %>% View()
+  mutate(nat_diff = (se.inad_N-se.inad_ea),
+         sing_diff = (se.inad-se.inad_ea)) %>% 
+  filter(nat_diff>(-3) & nat_diff<3 )
 
 # Binding them all into one table
 table <- rbind(one, two, three)
@@ -446,7 +447,7 @@ table <- rbind(one, two, three)
 table[,c(2:13)] <- round(table[,c(2:13)], 4)*100
 
 # Saving Table 4 -----
-write.csv(table , here::here("output", "risk-app-Se-inadequacy_v4.0.0.csv"), 
+write.csv(table , here::here("output", "risk-app-Se-inadequacy_v4.0.1.csv"), 
           row.names = FALSE)
 
 
