@@ -32,10 +32,14 @@ sum((58+3+2+1+2+2+1)/nrow(nct), #KE18
 (16+1+1)/nrow(nct), #UK21
 (3)/nrow(nct)) #US19
 
-## Fig. 1 ---------------------
+## Table 2 --------------------
+
+# Filtering only maize values:
+maize_codes <- c(101, 102, 103, 104, 105, 820)
 
 
-
+# Fig. 1 ---------------------
+# Boxplot
 test <- nct %>% filter(code %in% maize_codes) %>% 
   select(code,item, SEmcg) %>% 
   mutate(y1 = SEmcg, 
@@ -58,7 +62,7 @@ legend_title <- expression(paste(
 maize.df %>%  left_join(., nct[, c("code", "item", "SEmcg")], 
                         by =c("food_code"= "code")) %>%
   mutate(food_desc =  paste0(item, " (", food_code,  ")")) %>% 
-#  ggplot(aes(reorder(food_desc, as.numeric(food_code)), Se_mcg_100g)) +
+  #  ggplot(aes(reorder(food_desc, as.numeric(food_code)), Se_mcg_100g)) +
   ggplot(aes(reorder(item, as.numeric(food_code)), Se_mcg_100g)) +
   #  ggplot(aes(food_code, Se_mcg_100g)) + 
   geom_boxplot() + 
@@ -77,21 +81,91 @@ maize.df %>%  left_join(., nct[, c("code", "item", "SEmcg")],
   theme_bw() +
   theme(
     #strip.text.x = element_blank(),
-    strip.background = element_rect( fill="white"),
-     legend.position=c(.75,.82),
+    #   strip.background = element_rect( fill="white"),
+    #   legend.position=c(.75,.82),
     text = element_text(size = 20))
 
-# Loading IHS4 intkes
-ihs4_summary <-  readRDS(here::here("data", "inter-output", "ihs4-hh-intakes.RDS"))
-#sum(is.na(ihs4_summary$ea_id))
 
+
+# Apparent intakes (Table 3) ---------------------
+
+ihs4_summary <- readRDS(here::here("data", "inter-output", "ihs4-hh-intakes.RDS"))
+names(ihs4_summary)
+
+ihs4_summary$region <- as.factor(ihs4_summary$region)
+
+ihs4_design2 <- ihs4_summary %>% ungroup() %>% 
+  mutate(region = factor(region, levels = c(1, 2, 3), 
+                         labels = c("Northern", "Central", "Southern")),
+         reside = factor(reside, levels = c(1, 2), 
+                         labels = c("Urban", "Rural"))) %>% 
+  as_survey_design(strata = c(district, reside), weights = hh_wgt)
+
+## National-level Se & energy estimates -----
+ihs4_design2 %>% 
+  summarise(across(starts_with("apparent_"),
+                   ~srvyr::survey_quantile(.x, c(0.25, 0.5, 0.75)))) %>% 
+  select(-ends_with("se")) %>% 
+  pivot_longer(cols = starts_with("apparent_"), 
+               names_to = "method", 
+               values_to = "Quartile") %>% View()
+
+### Table 3 ---------------------
+# Apparent intkaes by residency, region and district
+# Manually saving one, two, three
+var <- c("reside","region",  "ADM2_EN")
+#table3 <- list()
+# Manually changing 1:3
+i =3
+# Manually saving 
+# one, two, three
+three <- ihs4_design2 %>% 
+  #group_by(region) %>% 
+  group_by(!!sym(var[i])) %>% 
+  summarise(across(starts_with("apparent_"),
+                   ~srvyr::survey_quantile(.x, c(0.25, 0.5, 0.75)))) %>% 
+  select(-ends_with("se")) %>% 
+  pivot_longer(cols = starts_with("apparent_"), 
+               names_to = "method", 
+               values_to = "Quartile") %>% 
+  pivot_wider(names_from = method, 
+              values_from = Quartile
+  ) %>% 
+  rename(variable = var[i]) 
+
+names(one)
+
+table3 <- rbind(one, two, three) %>% 
+  dplyr::select("variable", "apparent_kcal_q50", "apparent_kcal_q25",  "apparent_kcal_q75", 
+                "apparent_se_q50","apparent_se_q25", "apparent_se_q75" ,  
+                "apparent_se_N_q50" , "apparent_se_N_q25" , "apparent_se_N_q75", 
+                "apparent_se_ea_q50",   "apparent_se_ea_q25",  "apparent_se_ea_q75")
+
+table3 <- table3 %>% 
+  mutate(across(starts_with("apparent_kcal"), ~round(.))) %>% 
+  mutate(apparent_kcal_iqr = paste0("(", apparent_kcal_q25, "-", apparent_kcal_q75, ")")) %>% 
+  mutate(across(starts_with("apparent_se"), ~round(., 2))) %>% 
+  mutate(apparent_se_iqr = paste0("(", apparent_se_q25, "-", apparent_se_q75, ")")) %>% 
+  mutate(apparent_se_N_iqr = paste0("(", apparent_se_N_q25, "-", apparent_se_N_q75, ")")) %>% 
+  mutate(apparent_se_ea_iqr = paste0("(", apparent_se_ea_q25, "-", apparent_se_ea_q75, ")")) %>% 
+  dplyr::select("variable", "apparent_kcal_q50", "apparent_kcal_iqr",
+                "apparent_se_q50","apparent_se_iqr",   
+                "apparent_se_N_q50" , "apparent_se_N_iqr" , 
+                "apparent_se_ea_q50",   "apparent_se_ea_iqr") 
+
+# Saving Table 3 -----
+write.csv(table3 , here::here("output", "median-apparent-intakes_v4.0.0.csv"), 
+          row.names = FALSE)
+
+
+# Figure 2 prep. ----
 ## Loading Malawi EA shapefile & district names (generated in geo-spatial/00.cleaning-boundaries.R)
 ea <- st_read(here::here( "data", "boundaries", "mwi_admbnda_adm4_nso.shp")) %>% 
   mutate(ADM2_PCODE = gsub("MW", "",ADM2_PCODE ))
 
-
-# Results: Figures -----
-
+# Loading IHS4 intkes
+# ihs4_summary <-  readRDS(here::here("data", "inter-output", "ihs4-hh-intakes.RDS"))
+#sum(is.na(ihs4_summary$ea_id))
 ## Median using srvyr package ----
 # PSU = ea_id
 
@@ -147,6 +221,17 @@ ihs4_design2 %>%
     legend.position = "top", 
     text = element_text(size = 20)) 
 
+# Loading data on Malawi lake boundaries
+lakes <-  st_read(here::here("data",
+                             "boundaries", "EN_NSO" , "eas_bnd.shp")) %>% 
+  dplyr::filter(grepl("Lake", DISTRICT))
+
+# Combining the three geom for lake Chilwa into one
+lakes[2, "geometry"] <- st_union(lakes[2:4,]) %>% st_as_sf()
+
+# Saving the new file
+mwi_lakes <- lakes[c(1:2,5),]
+
 
 ## Figure 3: Maps of intake -----
 # Palettes from 
@@ -154,25 +239,20 @@ ihs4_design2 %>%
 var <- "ADM2_EN"
 #apparent_se_q50, apparent_se_N_q50, apparent_se_ea_q50 
 map3 <- ihs4_design2 %>% 
-  #group_by(region) %>% 
-  group_by(!!sym(var)) %>% 
+  #Grouping by District
+    group_by(!!sym(var)) %>% 
   summarise(across(starts_with("apparent_se"),
                    ~srvyr::survey_quantile(.x, c(0.25, 0.5, 0.75)))) %>% 
   select(-ends_with("se")) %>% 
   left_join(., ea,  by = c("ADM2_EN"= "ADM2_EN")) %>% st_as_sf() %>% 
   tm_shape() +
- #   tm_polygons(
   tm_fill( 
-   "apparent_se_ea_q50", 
-   # style = "cont", # changed fixed to continous
-  #    breaks = c(20, 35, 45, 80, 100), 
+   "apparent_se_ea_q50",  # This var. to be changed
  fill.scale = tm_scale_continuous(ticks = c(20, 35, 45, 80, 100)),
  fill.legend = tm_legend(show = FALSE)) +
- #fill.legend = tm_legend(title = "Apparent Se intake")) 
-    #  palette = "YlOrBr") +
-  #  palette = paletteer::paletteer_c("ggthemes::Blue-Teal", 30))
-#tm_style("natural", earth_boundary = c( 33, -18,  36 , -10), inner.margins = .05)
-  tm_style("classic_v3") 
+  # Adding the lakes 
+  tm_shape(mwi_lakes)+
+  tm_borders(colour ="lightgrey", col_alpha = 0.2)
 
 title_legend <- expression(paste(
   "Apparent Se intake (",
@@ -196,7 +276,7 @@ legend.map2 <- ihs4_design2 %>%
     # style = "cont", # changed fixed to continous
     #    breaks = c(20, 35, 45, 80, 100), 
     fill.scale = tm_scale_continuous(ticks = c(20, 35, 45, 80, 100)),
-    fill.legend = tm_legend(title = title_legend1, orientation = "portrait")) +
+    fill.legend = tm_legend(title = title_legend1, orientation = "landscape")) +
   tm_layout(legend.only = TRUE)
 
 tmap_arrange(map1, map2, map3, legend.map2, ncol =3, nrow = 2)
@@ -248,12 +328,22 @@ ihs4_design2 %>%
     legend.position = "top", 
     text = element_text(size = 20)) 
 
+## Suppl. Table. 2: inadequacy risk by residency region & district ----
+
+table <- read.csv(here::here("output", "risk-app-Se-inadequacy_v4.0.0.csv")) %>%
+  dplyr::select(-c(se, se.x, se.y))
+
+names(table) 
+
+names(table) <- c("variable", "inadeq_se","inadeq_se_ci_l", "inadeq_se_ci_u" ,  
+                "inadeq_se_N" , "inadeq_se_N_ci_l" , "inadeq_se_N_ci_u", 
+                "inadeq_se_ea",   "inadeq_se_ea_ci_l",  "inadeq_se_ea_ci_u")
 
 
 ## Fig. 4: difference inadequacy ----
 # Loading the data
 
-three <- read.csv(here::here("output", "risk-app-Se-inadequacy_v3.0.0.csv")) %>% 
+three <- read.csv(here::here("output", "risk-app-Se-inadequacy_v4.0.0.csv")) %>% 
   slice(6:37)
 
 pal_base <- c("#ffa600","#003f5c", "#35D0BA" )

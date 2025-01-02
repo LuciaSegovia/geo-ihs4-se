@@ -32,7 +32,16 @@ ihs4 <- readRDS(here::here("data", "inter-output",
 # https://github.com/LuciaSegovia/fct/blob/main/NCTs/ihs4_nct.R
 nct <-   read.csv(here::here("data", "nct", "ihs4_nct_SEmcg_v1.0.1.csv")) %>%
   # Excluding 118 not present in ihs4
-  filter(code != "118")
+  filter(!code %in% c("118", "204b", "831b", "832b"))
+
+# Food list from IHS4
+food_list <- ihs4 %>% select(item_code, item) %>% distinct()
+food_list <- ihs4 %>% count(item_code, item) %>% arrange(desc(n))
+
+nct_food <- nct %>% select(code, item) 
+
+# anti_join(food_list, nct_food, by =c("item_code" ="code"))
+# anti_join(nct_food, food_list, by =c("code" ="item_code"))
 
 # Maize Se ----
 # From the nct.R
@@ -181,6 +190,10 @@ ihs4_nct %>% filter(HHID %in% check) %>%
 
 ihs4_nct %>% filter(HHID %in% check) %>% arrange(kcal_afe) %>% View()
 
+food_list2 <- ihs4_nct %>% select(item_code, item) %>% distinct()
+
+anti_join(food_list, food_list2)
+
 ## Saving IHS4 food consumption & intakes per HHs----
 
 saveRDS(ihs4_summary, here::here("data", "inter-output", "ihs4-hh-intakes.RDS"))
@@ -223,6 +236,8 @@ foodgroups$FoodName_1[grep("fish", foodgroups$FoodName_1)] <- "fish and products
 foodgroups$FoodName_1[grep("sunflowerseed", foodgroups$FoodName_1)] <- "oils and products"
 foodgroups$FoodName_1[foodgroups$code == "105"] <- "maize and products (including white maize)"
 foodgroups$FoodName_1[foodgroups$code == "820"] <- "maize and products (including white maize)"
+foodgroups$FoodName_1[foodgroups$code %in% c("829", "836", "825", "828")] <- "miscellaneous and products"
+
 
 
 # Checking dupli
@@ -230,19 +245,24 @@ foodgroups$FoodName_1[foodgroups$code == "820"] <- "maize and products (includin
  value <- fg %>% count(code) %>% arrange(desc(n)) %>% filter(n>1) %>% pull(code)
 
 fg %>% filter(code %in% value)
+
 ihs4_nct %>% filter(item_code %in% value) %>% 
-  select(item_code, item) %>% distinct()
+  select(item_code, item) %>% distinct() %>% 
+  arrange(item_code)
+
 
 names(fg)
 
 sum(ihs4_nct$g_AFE==0)
+nrow(ihs4)-sum(ihs4$g_AFE==0)
 
 ihs4_nct <- ihs4_nct %>% left_join(., foodgroups,
                    by = c("item_code" = "code")) %>% 
   # We are removing consumed zero bc it would lower the "portions" 
   # And it would increase the frequency 
-  filter(!is.na(FoodName_1) & g_AFE >0)
+  filter(g_AFE >0)
 
+sum(is.na(ihs4_nct$FoodName_1))
 
 # Saving the food matches to consumption (raw) & food groups-----
 saveRDS(ihs4_nct, here::here("data", "inter-output", 
@@ -285,7 +305,7 @@ group_by(case_id, FoodName_1) %>%
         #    iqr75_cons =median_cons+IQR(total_cons, na.rm = TRUE),
             mean_ener = mean(ener, na.rm = TRUE), 
             sd_ener =sd(ener, na.rm = TRUE), 
-            enerc_per = (mean_ener/2362.6*100),
+            enerc_per = (mean_ener/mean(ihs4_summary$apparent_kcal)*100),
             Q25_ener =quantile(ener, c(0.25), na.rm = TRUE),
             median_ener = median(ener, na.rm = TRUE), 
             Q75_ener =quantile(ener, c(0.75), na.rm = TRUE), 

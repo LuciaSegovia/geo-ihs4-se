@@ -56,12 +56,72 @@ ihs4_design3 %>%
             p = survey_prop(vartype =c("ci")) * 100)
 
 
-# Supl. Table 1 -----
 
-# NCT ----
-nct %>% count(source_fct)
-(51+8+6+4)/150 #KE18
-(23+11+4+2+1+1)/150 #MW19
+maize <- ihs4_nct %>% dplyr::filter(item_code %in% maize_codes) %>% 
+  group_by(HHID, ea_id, hh_wgt, reside, district, Date, region) %>% 
+  summarise(
+    total_maize = sum(g_AFE), 
+    apparent_se = sum(Se_afe), 
+    apparent_se_N = sum(Se_afe_N), 
+    apparent_se_ea = sum(Se_afe_ea), 
+    apparent_kcal = sum(kcal_afe)) 
+
+maize <- maize %>% left_join(., ea %>% st_drop_geometry() %>%
+                      select(ADM2_EN, ADM2_PCODE) %>% distinct(),
+                    by = c("district" = "ADM2_PCODE")) 
+
+maize_design <- maize %>% 
+  mutate(region = factor(region, levels = c(1, 2, 3), 
+                         labels = c("Northern", "Central", "Southern")),
+         reside = factor(reside, levels = c(1, 2), 
+                         labels = c("Urban", "Rural"))) %>% 
+  as_survey_design(strata = c(district, reside), weights = hh_wgt)
+
+# Maize - Amount in g -----
+one <- maize_design %>% 
+  group_by(reside) %>% 
+  summarize(N = n(),
+           # p = survey_prop(vartype =c("ci")) * 100, 
+          maize = srvyr::survey_quantile(total_maize, c(0.25, 0.5, 0.75)))
+          #  maize = survey_median(total_maize))
+
+two <- maize_design %>% 
+  group_by(region) %>% 
+  summarize(N = n(),
+            # p = survey_prop(vartype =c("ci")) * 100, 
+            maize = srvyr::survey_quantile(total_maize, c(0.25, 0.5, 0.75)))
+#  maize = survey_median(total_maize))
+
+
+three <- maize_design %>% 
+  group_by(ADM2_EN) %>% 
+  summarize(N = n(),
+            # p = survey_prop(vartype =c("ci")) * 100, 
+            maize = srvyr::survey_quantile(total_maize, c(0.25, 0.5, 0.75)))
+#  maize = survey_median(total_maize))
+
+# Maize - Kcal -----
+one <- maize_design %>% 
+  group_by(reside) %>% 
+  summarize(N = n(),
+            # p = survey_prop(vartype =c("ci")) * 100, 
+            maize = srvyr::survey_quantile(apparent_kcal, c(0.25, 0.5, 0.75)))
+#  maize = survey_median(total_maize))
+
+two <- maize_design %>% 
+  group_by(region) %>% 
+  summarize(N = n(),
+            # p = survey_prop(vartype =c("ci")) * 100, 
+            maize = srvyr::survey_quantile(apparent_kcal, c(0.25, 0.5, 0.75)))
+#  maize = survey_median(total_maize))
+
+
+three <- maize_design %>% 
+  group_by(ADM2_EN) %>% 
+  summarize(N = n(),
+            # p = survey_prop(vartype =c("ci")) * 100, 
+            maize = srvyr::survey_quantile(total_maize, c(0.25, 0.5, 0.75)))
+#  maize = survey_median(total_maize))
 
 ## Table: Maize Se values ----
 
@@ -337,11 +397,11 @@ svyby(~apparent_se, ~district,  ihs4_design, svymean, vartype=c("se","ci")) %>%
 
 # App. inadequacy ----
 # Global mean
-svyciprop(~se.inad,ihs4_design,  method = "mean" , level = 0.95)
+svyciprop(~se.inad,ihs4_design,  method = "mean" , level = 0.95)*100
 #svymean(~se.inad, ihs4_design)
-svyciprop(~se.inad_N,ihs4_design,  method = "mean" , level = 0.95)
+svyciprop(~se.inad_N,ihs4_design,  method = "mean" , level = 0.95)*100
 #svymean(~se.inad_N, ihs4_design)
-svyciprop(~se.inad_ea,ihs4_design,  method = "mean" , level = 0.95)
+svyciprop(~se.inad_ea,ihs4_design,  method = "mean" , level = 0.95)*100
 #svymean(~se.inad_ea, ihs4_design)
 
 
@@ -386,7 +446,7 @@ table <- rbind(one, two, three)
 table[,c(2:13)] <- round(table[,c(2:13)], 4)*100
 
 # Saving Table 4 -----
-write.csv(table , here::here("output", "risk-app-Se-inadequacy_v3.0.0.csv"), 
+write.csv(table , here::here("output", "risk-app-Se-inadequacy_v4.0.0.csv"), 
           row.names = FALSE)
 
 

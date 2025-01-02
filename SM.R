@@ -1,5 +1,71 @@
 
 
+# Loading the packages -----
+library(dplyr) # Data cleaning 
+library(tidyr) # Data manipulation
+library(ggplot2) # Data viz
+
+
+# Data -----
+
+ihs4_nct <- readRDS(here::here("data", "inter-output", 
+                             "ihs4-intake-ncts-fg.RDS"))
+
+# Food list from IHS4
+fg_list <-  nct %>% select(code, item) %>% distinct() %>% 
+  left_join(., foodgroups)
+
+fg_list %>% 
+  write.csv(., here::here("output", "SM", "Suppl.Tab2_food-group-summary_list.csv"), 
+            row.names = FALSE)
+
+# Supl. Table 1 -----
+# The NCT from fct repo
+
+## Supplementary Table 2 ------
+
+ihs4_nct %>% 
+  group_by(case_id, FoodName_1) %>% 
+  summarise(total_cons = sum(g_AFE, na.rm = TRUE),
+            ener = sum(kcal_afe, na.rm = TRUE), 
+            se_ea = sum(Se_afe_ea, na.rm = TRUE), 
+            se = sum(Se_afe, na.rm = TRUE),
+            seN = sum(Se_afe_N, na.rm = TRUE)) %>% 
+  group_by(FoodName_1) %>% 
+  summarise(perc = n()/length(unique(ihs4$case_id))*100, 
+            mean_cons = mean(total_cons, na.rm = TRUE), 
+            sd_cons =sd(total_cons, na.rm = TRUE),
+            Q25_cons =quantile(total_cons, c(0.25), na.rm = TRUE),
+            median_cons = median(total_cons, na.rm = TRUE), 
+            Q75_cons =quantile(total_cons, c(0.75), na.rm = TRUE), 
+            #   iqr25_cons =median_cons-IQR(total_cons, na.rm = TRUE),
+            #    iqr75_cons =median_cons+IQR(total_cons, na.rm = TRUE),
+            mean_ener = mean(ener, na.rm = TRUE), 
+            sd_ener =sd(ener, na.rm = TRUE), 
+            enerc_per = (mean_ener/2257.252*100),
+            median_ener = median(ener, na.rm = TRUE), 
+            Q25_ener =quantile(ener, c(0.25), na.rm = TRUE),
+            Q75_ener =quantile(ener, c(0.75), na.rm = TRUE), 
+            median_Se = median(se, na.rm = TRUE),
+            Q25_Se =quantile(se, c(0.25), na.rm = TRUE),
+            Q75_Se =quantile(se, c(0.75), na.rm = TRUE),
+            median_SeN = median(seN, na.rm = TRUE),
+            Q25_SeN =quantile(seN, c(0.25), na.rm = TRUE),
+            Q75_SeN =quantile(seN, c(0.75), na.rm = TRUE),
+            median_Se_ea = median(se_ea, na.rm = TRUE),
+            Q25_Se_ea =quantile(se_ea, c(0.25), na.rm = TRUE),
+            Q75_Se_ea =quantile(se_ea, c(0.75), na.rm = TRUE)
+            ) %>% arrange(desc(perc)) %>% 
+  write.csv(., here::here("output", "SM", "Suppl.Tab3_food-group-summary.csv"), row.names = FALSE)
+  # arrange(desc(mean_se_ea)) %>% View()
+  # group_by(FoodName_1) %>% 
+  # filter(perc >50) %>% View()
+  # slice_max(order_by = mean_cons, n = 10) %>% ungroup() %>% 
+  # distinct(FoodName_1)
+
+
+
+
 
 
 ## Testing loop ------
