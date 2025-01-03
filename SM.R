@@ -11,6 +11,7 @@ library(ggplot2) # Data viz
 ihs4_nct <- readRDS(here::here("data", "inter-output", 
                              "ihs4-intake-ncts-fg.RDS"))
 
+## Supplementary Table 2 ------
 # Food list from IHS4
 fg_list <-  nct %>% select(code, item) %>% distinct() %>% 
   left_join(., foodgroups)
@@ -22,7 +23,7 @@ fg_list %>%
 # Supl. Table 1 -----
 # The NCT from fct repo
 
-## Supplementary Table 2 ------
+## Supplementary Table 3 ------
 
 ihs4_nct %>% 
   group_by(case_id, FoodName_1) %>% 
