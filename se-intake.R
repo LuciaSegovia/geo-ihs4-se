@@ -50,7 +50,8 @@ maize.df <- readRDS(here::here("data", "inter-output", "ea-maize-se-nct.RDS"))
 # National (single value)
 national_maize <- readRDS( here::here("data", "inter-output",
                                       "national-maize-se-nct.RDS")) %>% 
-  rename(Se_mcg_100gN = "Se_mcg_100g") %>% mutate(Se_mcg_100gN = as.numeric(Se_mcg_100gN))
+  rename(Se_mcg_100gN = "Se_mcg_100g") %>%
+  mutate(Se_mcg_100gN = as.numeric(Se_mcg_100gN))
 
 
 # Merging the datasets -----
@@ -118,6 +119,13 @@ ihs4_nct$g_AFE[ihs4_nct$item_code == "835"]
 # Saving the food matches to consumption (raw)
 saveRDS(ihs4_nct, here::here("data", "inter-output", 
                              "ihs4-intake-ncts.RDS"))
+
+
+# Max maize Se in EAs
+
+ihs4_nct %>% filter(item_code == "102") %>% 
+  select(ea_id,Se_mcg_100g, district ) %>% distinct() %>% 
+  arrange(desc(Se_mcg_100g)) %>% View()
 
 #ihs4_nct %>% filter(is.na(SEmcg), !is.na(Se_mcg_100g))
 #

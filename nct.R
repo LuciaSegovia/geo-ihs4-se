@@ -83,6 +83,8 @@ Se_med <- median(predmaize.df$predSe)
 
 # mcg/100g = mcg/g * (100-water (g/100g)) 
 Se_med*(100-nct$WATER[nct$code == "101"])
+# Converion of granmill from Joy et al (2021)
+0.170*(100-13)
 # g/100g = g/g * (100-water (g/100g)) 
 (Se_med/1000*(100-nct$WATER[nct$code == "101"]))*1000
 
